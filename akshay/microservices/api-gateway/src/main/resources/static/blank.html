@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1a202c;
+        }
+
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .message {
+            font-size: 18px;
+            color: #718096;
+            margin-bottom: 24px;
+        }
+
+        .logout-btn {
+            padding: 12px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .user-info {
+            margin-bottom: 32px;
+            padding: 24px;
+            background: #f7fafc;
+            border-radius: 16px;
+            display: inline-block;
+        }
+
+        .user-info h2 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #1a202c;
+        }
+
+        .user-info p {
+            color: #718096;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-info" id="userInfo">
+            <h2 id="userName">Welcome!</h2>
+            <p id="userEmail"></p>
+        </div>
+        <p class="message">You are successfully logged in.</p>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <script>
+        // Check if user is authenticated
+        const token = localStorage.getItem('token');
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+
+        if (!token) {
+            // Not authenticated, redirect to login
+            window.location.href = 'index.html';
+        } else {
+            // Display user info
+            const fullName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            document.getElementById('userName').textContent = `Welcome, ${fullName}!`;
+            document.getElementById('userEmail').textContent = userData.email || '';
+        }
+
+        function logout() {
+            // Clear authentication data
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+
+            // Redirect to login page
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+
+</html>
