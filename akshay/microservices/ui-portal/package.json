@@ -1,0 +1,9 @@
+{
+  "name": "ui-portal",
+  "version": "1.0.0",
+  "description": "Standalone UI for Microservices JWT Auth project",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 3000"
+  }
+}

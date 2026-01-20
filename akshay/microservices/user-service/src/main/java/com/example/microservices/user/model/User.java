@@ -10,9 +10,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-    private Long id;
+    private String id;
     private String email;
     private String firstName;
     private String lastName;
+    private String role;
     private LocalDateTime createdAt;
 }

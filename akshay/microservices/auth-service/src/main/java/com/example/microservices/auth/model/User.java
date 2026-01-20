@@ -1,38 +1,35 @@
 package com.example.microservices.auth.model;
 
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "users")
+@Document(collection = "users")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-    
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
-    @Column(unique = true, nullable = false)
+    private String id;
+
+    @Indexed(unique = true, name = "email_1")
     private String email;
-    
-    @Column(nullable = false)
+
     private String password;
-    
+
     private String firstName;
-    
+
     private String lastName;
-    
-    @Column(nullable = false)
+
+    private String role; // ADMIN, CANDIDATE, RECRUITER
+
+    @CreatedDate
     private LocalDateTime createdAt;
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-    }
 }

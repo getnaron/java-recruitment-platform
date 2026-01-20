@@ -1,7 +1,0 @@
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/security/JwtAuthenticationFilter.java
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/security/JwtUtil.java
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/model/User.java
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/controller/UserController.java
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/config/SecurityConfig.java
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/client/AuthServiceClient.java
-/Users/anaron/.gemini/antigravity/java/akshay/microservices/user-service/src/main/java/com/example/microservices/user/UserServiceApplication.java
