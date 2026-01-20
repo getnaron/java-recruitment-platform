@@ -158,9 +158,9 @@ body {
 }
 
 .brand-icon {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 16px;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
     background: var(--primary-gradient);
     border-radius: var(--radius-lg);
     display: flex;
@@ -172,8 +172,8 @@ body {
 }
 
 .brand-icon svg {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
 }
 
 @keyframes pulse {
@@ -427,20 +427,20 @@ input[type="password"]::placeholder {
 }
 
 .role-card {
-    padding: 16px;
+    padding: 12px;
     border: 2px solid var(--border-color);
     border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     transition: var(--transition-fast);
     background: white;
 }
 
 .role-card svg {
-    width: 32px;
-    height: 32px;
+    width: 20px;
+    height: 20px;
     color: var(--text-light);
     transition: var(--transition-fast);
 }
@@ -918,5 +918,50 @@ input[type="password"]::placeholder {
         flex-direction: column;
         gap: 12px;
         align-items: flex-start;
+    }
+
+    .role-selector {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .auth-card,
+    .dashboard {
+        padding: 24px 16px;
+    }
+
+    .brand-icon {
+        width: 40px;
+        height: 40px;
+        margin-bottom: 8px;
+    }
+
+    .brand-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .brand-name {
+        font-size: 20px;
+    }
+
+    .form-title {
+        font-size: 20px;
+    }
+
+    .tab-btn {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .role-card {
+        padding: 10px;
+    }
+
+    .role-card svg {
+        width: 20px;
+        height: 20px;
     }
 }
