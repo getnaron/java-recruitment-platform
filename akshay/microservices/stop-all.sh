@@ -39,6 +39,7 @@ stop_service() {
 # Stop services in reverse order
 stop_service "ui.pid" "UI Portal"
 stop_service "gateway.pid" "API Gateway"
+stop_service "job.pid" "Job Service"
 stop_service "user.pid" "User Service"
 stop_service "auth.pid" "Auth Service"
 stop_service "eureka.pid" "Eureka Server"

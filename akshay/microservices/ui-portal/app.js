@@ -238,20 +238,26 @@ function showDashboard(userData) {
     const role = userData.role || 'CANDIDATE';
     roleBadge.textContent = role;
 
+    const recruiterJobSection = document.getElementById('recruiterJobSection');
+
     if (role === 'ADMIN') {
         roleTitle.textContent = "🎉 Welcome Admin!";
         roleDescription.textContent = "You have full access to view all recruiters and candidates in the system.";
         roleVisibleSection.style.display = 'block';
+        recruiterJobSection.style.display = 'none';
         fetchUsersByRole('ALL'); // Custom flag for admin
     } else if (role === 'RECRUITER') {
         roleTitle.textContent = "🎉 Welcome Recruiter!";
-        roleDescription.textContent = "You can view all candidates available for hiring.";
+        roleDescription.textContent = "You can view all candidates and manage your job openings.";
         roleVisibleSection.style.display = 'block';
+        recruiterJobSection.style.display = 'block';
         fetchUsersByRole('CANDIDATE');
+        fetchJobs();
     } else {
         roleTitle.textContent = "🎉 Welcome Candidate!";
         roleDescription.textContent = "You can manage your applications and profile here.";
         roleVisibleSection.style.display = 'none';
+        recruiterJobSection.style.display = 'none';
     }
 
     // Switch view
@@ -371,21 +377,82 @@ function hideAlert(alertId) {
     alert.className = 'alert';
 }
 
-// Test Protected Endpoint (for demonstration)
-async function testProtectedEndpoint() {
+// Job Management Functions
+function showJobForm() {
+    document.getElementById('jobFormContainer').style.display = 'block';
+}
+
+function hideJobForm() {
+    document.getElementById('jobFormContainer').style.display = 'none';
+}
+
+async function handleCreateJob(e) {
+    if (e) e.preventDefault();
+
+    const jobData = {
+        title: document.getElementById('jobTitle').value,
+        requirements: document.getElementById('jobRequirements').value,
+        companyName: document.getElementById('jobCompany').value,
+        description: document.getElementById('jobDescription').value,
+        salary: parseFloat(document.getElementById('jobSalary').value) || null
+    };
+
     try {
-        const response = await fetch(`${API_BASE_URL}/user/test`, {
-            method: 'GET',
+        const response = await fetch(`${API_BASE_URL}/job/create`, {
+            method: 'POST',
             headers: {
                 'Authorization': `Bearer ${currentToken}`,
                 'Content-Type': 'application/json',
             },
+            body: JSON.stringify(jobData),
         });
 
-        const data = await response.json();
-        console.log('Protected endpoint response:', data);
-        return data;
+        if (response.ok) {
+            hideJobForm();
+            fetchJobs();
+            // Reset form
+            e.target.reset();
+        } else {
+            console.error('Failed to create job');
+            alert('Failed to create job opening. Please try again.');
+        }
     } catch (error) {
-        console.error('Error calling protected endpoint:', error);
+        console.error('Create job error:', error);
+    }
+}
+
+async function fetchJobs() {
+    const jobsList = document.getElementById('jobsList');
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/my-jobs`, {
+            headers: {
+                'Authorization': `Bearer ${currentToken}`
+            }
+        });
+
+        if (response.ok) {
+            const jobs = await response.json();
+            if (jobs.length === 0) {
+                jobsList.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No jobs posted yet.</p>';
+                return;
+            }
+
+            jobsList.innerHTML = jobs.map(job => `
+                <div class="user-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <h5 style="font-size: 16px; font-weight: 700;">${job.title}</h5>
+                        <span class="badge">${job.companyName || 'Private'}</span>
+                    </div>
+                    <p style="font-size: 14px; color: var(--text-secondary);">${job.description}</p>
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-light);">
+                        <span>💼 ${job.requirements}</span>
+                        ${job.salary ? `<span>💰 $${job.salary.toLocaleString()}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Fetch jobs error:', error);
     }
 }
