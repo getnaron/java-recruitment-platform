@@ -15,6 +15,16 @@ public class AuthResponse {
     private String lastName;
     private String role;
 
+    // Profile Fields
+    private String currentCompany;
+    private String experienceYears;
+    private String education;
+    private String skills;
+    private String pastExperience;
+    private String resumeUrl;
+    private String countryCode;
+    private String mobileNumber;
+
     public AuthResponse(String token, String email, String firstName, String lastName, String role) {
         this.token = token;
         this.email = email;

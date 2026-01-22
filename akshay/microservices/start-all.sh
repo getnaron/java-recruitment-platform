@@ -45,6 +45,13 @@ export SDKMAN_DIR="/Users/anaron/.sdkman"
 mkdir -p logs
 mkdir -p .pids
 
+# Start MongoDB
+echo "Step 0: Starting MongoDB..."
+mongod --dbpath mongodb_data --logpath logs/mongodb.log --nounixsocket > /dev/null 2>&1 &
+MONGO_PID=$!
+echo "$MONGO_PID" > .pids/mongodb.pid
+if ! wait_for_port 27017 "MongoDB" 30; then exit 1; fi
+
 # Start Eureka
 echo "Step 1: Starting Eureka Server..."
 cd eureka-server

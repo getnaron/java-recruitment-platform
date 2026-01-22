@@ -16,4 +16,14 @@ public class User {
     private String lastName;
     private String role;
     private LocalDateTime createdAt;
+
+    // Profile Fields
+    private String resumeUrl;
+    private String currentCompany;
+    private String experienceYears;
+    private String pastExperience;
+    private String education;
+    private String skills;
+    private String countryCode;
+    private String mobileNumber;
 }

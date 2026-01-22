@@ -43,6 +43,7 @@ stop_service "job.pid" "Job Service"
 stop_service "user.pid" "User Service"
 stop_service "auth.pid" "Auth Service"
 stop_service "eureka.pid" "Eureka Server"
+stop_service "mongodb.pid" "MongoDB"
 
 echo ""
 echo -e "${GREEN}All services stopped${NC}"

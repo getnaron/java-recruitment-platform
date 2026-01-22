@@ -52,7 +52,18 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
 
-        return new AuthResponse(token, user.getEmail(), user.getFirstName(), user.getLastName(), user.getRole());
+        AuthResponse response = new AuthResponse(token, user.getEmail(), user.getFirstName(), user.getLastName(),
+                user.getRole());
+        response.setCurrentCompany(user.getCurrentCompany());
+        response.setExperienceYears(user.getExperienceYears());
+        response.setEducation(user.getEducation());
+        response.setSkills(user.getSkills());
+        response.setPastExperience(user.getPastExperience());
+        response.setResumeUrl(user.getResumeUrl());
+        response.setCountryCode(user.getCountryCode());
+        response.setMobileNumber(user.getMobileNumber());
+
+        return response;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -66,7 +77,18 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
 
-        return new AuthResponse(token, user.getEmail(), user.getFirstName(), user.getLastName(), user.getRole());
+        AuthResponse response = new AuthResponse(token, user.getEmail(), user.getFirstName(), user.getLastName(),
+                user.getRole());
+        response.setCurrentCompany(user.getCurrentCompany());
+        response.setExperienceYears(user.getExperienceYears());
+        response.setEducation(user.getEducation());
+        response.setSkills(user.getSkills());
+        response.setPastExperience(user.getPastExperience());
+        response.setResumeUrl(user.getResumeUrl());
+        response.setCountryCode(user.getCountryCode());
+        response.setMobileNumber(user.getMobileNumber());
+
+        return response;
     }
 
     public User getUserByEmail(String email) {
@@ -80,5 +102,32 @@ public class AuthService {
 
     public List<User> getAllUsers() {
         return userRepository.findAll();
+    }
+
+    public User updateUser(String email, User updatedUser) {
+        User user = getUserByEmail(email);
+
+        if (updatedUser.getFirstName() != null)
+            user.setFirstName(updatedUser.getFirstName());
+        if (updatedUser.getLastName() != null)
+            user.setLastName(updatedUser.getLastName());
+        if (updatedUser.getCurrentCompany() != null)
+            user.setCurrentCompany(updatedUser.getCurrentCompany());
+        if (updatedUser.getExperienceYears() != null)
+            user.setExperienceYears(updatedUser.getExperienceYears());
+        if (updatedUser.getPastExperience() != null)
+            user.setPastExperience(updatedUser.getPastExperience());
+        if (updatedUser.getEducation() != null)
+            user.setEducation(updatedUser.getEducation());
+        if (updatedUser.getSkills() != null)
+            user.setSkills(updatedUser.getSkills());
+        if (updatedUser.getResumeUrl() != null)
+            user.setResumeUrl(updatedUser.getResumeUrl());
+        if (updatedUser.getCountryCode() != null)
+            user.setCountryCode(updatedUser.getCountryCode());
+        if (updatedUser.getMobileNumber() != null)
+            user.setMobileNumber(updatedUser.getMobileNumber());
+
+        return userRepository.save(user);
     }
 }

@@ -3,6 +3,7 @@ const API_BASE_URL = 'http://localhost:8080/api';
 
 // State Management
 let currentToken = localStorage.getItem('token');
+let currentUser = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -194,22 +195,22 @@ async function validateTokenAndShowDashboard() {
 
         if (response.ok) {
             const userData = await response.json();
-            showDashboard({
+            currentUser = {
                 token: currentToken,
-                email: userData.email,
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                role: userData.role
-            });
+                ...userData
+            };
+            showDashboard(currentUser);
         } else {
             // Token is invalid, clear it
             localStorage.removeItem('token');
             currentToken = null;
+            currentUser = null;
         }
     } catch (error) {
         console.error('Token validation error:', error);
         localStorage.removeItem('token');
         currentToken = null;
+        currentUser = null;
     }
 }
 
@@ -220,7 +221,6 @@ function showDashboard(userData) {
     const userName = document.getElementById('userName');
     const userEmail = document.getElementById('userEmail');
     const avatarInitials = document.getElementById('avatarInitials');
-    const tokenValue = document.getElementById('tokenValue');
 
     // Role elements
     const roleTitle = document.getElementById('roleTitle');
@@ -232,7 +232,6 @@ function showDashboard(userData) {
     userName.textContent = `Welcome, ${userData.firstName}!`;
     userEmail.textContent = userData.email;
     avatarInitials.textContent = getInitials(userData.firstName, userData.lastName);
-    tokenValue.textContent = userData.token;
 
     // Role-based updates
     const role = userData.role || 'CANDIDATE';
@@ -251,14 +250,26 @@ function showDashboard(userData) {
         roleDescription.textContent = "You can view all candidates and manage your job openings.";
         roleVisibleSection.style.display = 'block';
         recruiterJobSection.style.display = 'block';
+        document.getElementById('navProfileBtn').style.display = 'flex';
         fetchUsersByRole('CANDIDATE');
         fetchJobs();
     } else {
         roleTitle.textContent = "🎉 Welcome Candidate!";
-        roleDescription.textContent = "You can manage your applications and profile here.";
+        roleDescription.textContent = "Find your next career opportunity here.";
         roleVisibleSection.style.display = 'none';
         recruiterJobSection.style.display = 'none';
+        document.getElementById('candidateJobSection').style.display = 'block';
+        document.getElementById('navProfileBtn').style.display = 'flex';
+        // Hide profile button on click logic is handled in toggle
+
+        fetchAvailableJobs();
+
+        // Ensure we start on dashboard
+        showDashboardView();
     }
+
+    // Pre-populate profile in background
+    populateProfileForm(userData);
 
     // Switch view
     authCard.style.display = 'none';
@@ -294,7 +305,12 @@ async function fetchUsersByRole(target) {
                         <h5>${user.firstName} ${user.lastName}</h5>
                         <p>${user.email}</p>
                     </div>
-                    <span class="badge">${user.role}</span>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="badge">${user.role}</span>
+                        ${user.role === 'CANDIDATE' ?
+                    `<button class="btn btn-secondary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="padding: 4px 12px; font-size: 12px;">View Profile</button>`
+                    : ''}
+                    </div>
                 </div>
             `).join('');
         } else {
@@ -326,6 +342,11 @@ function handleLogout() {
     dashboard.classList.remove('active');
     authCard.style.display = 'block';
 
+    // Hide role specific sections
+    document.getElementById('recruiterJobSection').style.display = 'none';
+    document.getElementById('candidateJobSection').style.display = 'none';
+    document.getElementById('roleVisibleSection').style.display = 'none';
+
     // Reset forms
     document.getElementById('loginForm').reset();
     document.getElementById('registerForm').reset();
@@ -333,36 +354,157 @@ function handleLogout() {
     // Switch to login tab
     switchTab('login');
 
-    // Show success message
     showAlert('loginAlert', 'You have been logged out successfully', 'success');
 }
 
-// Copy Token
-function copyToken() {
-    const tokenValue = document.getElementById('tokenValue').textContent;
+// Profile Management
+function populateProfileForm(userData) {
+    document.getElementById('profileFirstName').value = userData.firstName || '';
+    document.getElementById('profileLastName').value = userData.lastName || '';
 
-    navigator.clipboard.writeText(tokenValue).then(() => {
-        // Show temporary success feedback
-        const btnCopy = document.querySelector('.btn-copy');
-        const originalHTML = btnCopy.innerHTML;
+    // Country code might default to +1 if empty
+    document.getElementById('profileCountryCode').value = userData.countryCode || '+1';
+    document.getElementById('profileMobileNumber').value = userData.mobileNumber || '';
 
-        btnCopy.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        `;
-        btnCopy.style.background = '#48bb78';
-        btnCopy.style.color = 'white';
+    document.getElementById('profileCompany').value = userData.currentCompany || '';
+    document.getElementById('profileExperienceYears').value = userData.experienceYears || '';
+    document.getElementById('profileEducation').value = userData.education || '';
+    document.getElementById('profileSkills').value = userData.skills || '';
+    document.getElementById('profilePastExperience').value = userData.pastExperience || '';
 
-        setTimeout(() => {
-            btnCopy.innerHTML = originalHTML;
-            btnCopy.style.background = '';
-            btnCopy.style.color = '';
-        }, 2000);
-    }).catch(err => {
-        console.error('Failed to copy token:', err);
-    });
+    const resumeLink = document.getElementById('currentResumeLink');
+    if (userData.resumeUrl) {
+        resumeLink.innerHTML = `Current Resume: <a href="${API_BASE_URL}/auth/profile/resume/${userData.resumeUrl}" target="_blank">Download</a>`;
+    } else {
+        resumeLink.textContent = '';
+    }
+
+    // Toggle Candidate Specific Fields based on Role
+    const candidateFields = document.getElementById('candidateSpecificFields');
+    if (userData.role === 'RECRUITER') {
+        candidateFields.style.display = 'none';
+    } else {
+        candidateFields.style.display = 'block';
+    }
 }
+
+async function handleProfileUpdate(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.classList.add('loading');
+
+    try {
+        // 1. Update basic info
+        // 1. Update basic info
+        const profileData = {
+            firstName: document.getElementById('profileFirstName').value,
+            lastName: document.getElementById('profileLastName').value,
+            countryCode: document.getElementById('profileCountryCode').value,
+            mobileNumber: document.getElementById('profileMobileNumber').value,
+            currentCompany: document.getElementById('profileCompany').value
+        };
+
+        // Add candidate specific fields only if candidate
+        if (currentUser && currentUser.role !== 'RECRUITER') {
+            profileData.experienceYears = document.getElementById('profileExperienceYears').value;
+            profileData.education = document.getElementById('profileEducation').value;
+            profileData.skills = document.getElementById('profileSkills').value;
+            profileData.pastExperience = document.getElementById('profilePastExperience').value;
+        }
+
+        const updateResponse = await fetch(`${API_BASE_URL}/auth/profile`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(profileData)
+        });
+
+        if (!updateResponse.ok) throw new Error('Failed to update profile data');
+
+        // 2. Upload resume if selected
+        const resumeFile = document.getElementById('profileResume').files[0];
+        if (resumeFile) {
+            const formData = new FormData();
+            formData.append('file', resumeFile);
+
+            const uploadResponse = await fetch(`${API_BASE_URL}/auth/profile/resume`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${currentToken}`
+                },
+                body: formData
+            });
+
+            if (!uploadResponse.ok) throw new Error('Failed to upload resume');
+        }
+
+        alert('Profile updated successfully!');
+        validateTokenAndShowDashboard(); // Refresh data
+
+    } catch (error) {
+        console.error('Profile update error:', error);
+        alert('Error updating profile: ' + error.message);
+    } finally {
+        btn.classList.remove('loading');
+    }
+}
+
+async function viewCandidateProfile(email) {
+    try {
+        // Fetch specific user details
+        // We can use the internal endpoint proxied via User Service or just assume we have access if Recruiter
+        // Since we don't have a direct "get user by email" public endpoint for recruiters, we might need to rely on the list data
+        // BUT list data might be shallow if we implemented pagination (not yet). 
+        // Let's us the list fetch again or filter from memory? 
+        // Better: user-service 'internal/user/{email}' is for microservices.
+        // Let's add a public (but secured) endpoint in UserController to get candidate details: /api/user/candidate/{email}
+        // OR filtering the full list client side is easier given current size.
+
+        // Let's just re-fetch the candidate list or filter if we can.
+        // Since we don't have a "get single user" endpoint exposed to frontend, 
+        // I will implement a quick one-off fetch to the list endpoint and filter (inefficient but works for now)
+        // OR better: Just use the list API.
+
+        // Wait, I can just use the `fetchUsersByRole` logic but for one? No.
+        // Let's USE the /user/candidates endpoint and find the user.
+
+        const response = await fetch(`${API_BASE_URL}/user/candidates`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const candidates = await response.json();
+            const candidate = candidates.find(u => u.email === email);
+
+            if (candidate) {
+                document.getElementById('viewCandidateName').textContent = `${candidate.firstName} ${candidate.lastName}`;
+                document.getElementById('viewCandidateEmail').textContent = candidate.email;
+                document.getElementById('viewCandidateCompany').textContent = candidate.currentCompany || 'N/A';
+                document.getElementById('viewCandidateExperience').textContent = candidate.experienceYears || '0';
+                document.getElementById('viewCandidateEducation').textContent = candidate.education || 'N/A';
+                document.getElementById('viewCandidateSkills').textContent = candidate.skills || 'N/A';
+                document.getElementById('viewCandidatePastExp').textContent = candidate.pastExperience || 'No details provided.';
+
+                // Show resume warning
+                document.getElementById('viewCandidateResumeSection').style.display = 'block';
+
+                document.getElementById('candidateDetailsModal').style.display = 'flex';
+            }
+        }
+
+    } catch (error) {
+        console.error('Error fetching candidate details:', error);
+        alert('Could not load candidate details.');
+    }
+}
+
+function closeCandidateModal() {
+    document.getElementById('candidateDetailsModal').style.display = 'none';
+}
+
+
 
 // Show Alert
 function showAlert(alertId, message, type) {
@@ -423,12 +565,9 @@ async function handleCreateJob(e) {
 
 async function fetchJobs() {
     const jobsList = document.getElementById('jobsList');
-
     try {
         const response = await fetch(`${API_BASE_URL}/job/my-jobs`, {
-            headers: {
-                'Authorization': `Bearer ${currentToken}`
-            }
+            headers: { 'Authorization': `Bearer ${currentToken}` }
         });
 
         if (response.ok) {
@@ -437,22 +576,65 @@ async function fetchJobs() {
                 jobsList.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No jobs posted yet.</p>';
                 return;
             }
-
-            jobsList.innerHTML = jobs.map(job => `
-                <div class="user-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <h5 style="font-size: 16px; font-weight: 700;">${job.title}</h5>
-                        <span class="badge">${job.companyName || 'Private'}</span>
-                    </div>
-                    <p style="font-size: 14px; color: var(--text-secondary);">${job.description}</p>
-                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-light);">
-                        <span>💼 ${job.requirements}</span>
-                        ${job.salary ? `<span>💰 $${job.salary.toLocaleString()}</span>` : ''}
-                    </div>
-                </div>
-            `).join('');
+            jobsList.innerHTML = jobs.map(renderJobItem).join('');
         }
     } catch (error) {
         console.error('Fetch jobs error:', error);
     }
+}
+
+async function fetchAvailableJobs() {
+    const jobsList = document.getElementById('availableJobsList');
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/all`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const jobs = await response.json();
+            if (jobs.length === 0) {
+                jobsList.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No available jobs at the moment.</p>';
+                return;
+            }
+            jobsList.innerHTML = jobs.map(renderJobItem).join('');
+        }
+    } catch (error) {
+        console.error('Fetch jobs error:', error);
+    }
+}
+
+function renderJobItem(job) {
+    return `
+        <div class="user-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                <h5 style="font-size: 16px; font-weight: 700;">${job.title}</h5>
+                <span class="badge" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">${job.companyName || 'Private'}</span>
+            </div>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.5;">${job.description}</p>
+            <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-light); margin-top: 4px;">
+                <span style="display: flex; align-items: center; gap: 4px;">💼 ${job.requirements}</span>
+                ${job.salary ? `<span style="display: flex; align-items: center; gap: 4px;">💰 $${job.salary.toLocaleString()}</span>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+
+
+function showProfileView() {
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('profileView').style.display = 'block';
+
+    // Optional: Auto-refresh profile data when entering view
+    // validateTokenAndShowDashboard(); // Might be overkill/loop
+}
+
+function showDashboardView() {
+    document.getElementById('profileView').style.display = 'none';
+    document.getElementById('dashboardView').style.display = 'block';
+}
+
+// Override the old scroll function to just switch views
+function scrollToProfile() {
+    showProfileView();
 }

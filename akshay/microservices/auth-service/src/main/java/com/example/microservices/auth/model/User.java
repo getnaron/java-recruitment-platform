@@ -32,4 +32,14 @@ public class User {
 
     @CreatedDate
     private LocalDateTime createdAt;
+
+    // Profile Fields
+    private String resumeUrl;
+    private String currentCompany;
+    private String experienceYears;
+    private String pastExperience;
+    private String education;
+    private String skills;
+    private String countryCode;
+    private String mobileNumber;
 }

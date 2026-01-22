@@ -34,6 +34,16 @@ public class UserController {
         profile.put("role", user.getRole());
         profile.put("createdAt", user.getCreatedAt());
 
+        // Profile Fields
+        profile.put("currentCompany", user.getCurrentCompany());
+        profile.put("experienceYears", user.getExperienceYears());
+        profile.put("education", user.getEducation());
+        profile.put("skills", user.getSkills());
+        profile.put("pastExperience", user.getPastExperience());
+        profile.put("resumeUrl", user.getResumeUrl());
+        profile.put("countryCode", user.getCountryCode());
+        profile.put("mobileNumber", user.getMobileNumber());
+
         return ResponseEntity.ok(profile);
     }
 
