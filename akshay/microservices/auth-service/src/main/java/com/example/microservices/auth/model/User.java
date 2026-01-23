@@ -42,4 +42,9 @@ public class User {
     private String skills;
     private String countryCode;
     private String mobileNumber;
+
+    // Binary Resume Storage
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private byte[] resumeData;
+    private String resumeContentType;
 }

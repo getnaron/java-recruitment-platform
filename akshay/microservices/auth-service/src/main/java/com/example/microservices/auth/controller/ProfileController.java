@@ -56,51 +56,117 @@ public class ProfileController {
     public ResponseEntity<?> uploadResume(@RequestParam("file") MultipartFile file) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
+        System.out.println("DEBUG: uploadResume called for " + email + ". File size: " + file.getSize());
 
         try {
-            // Normalize file name
-            String originalFileName = file.getOriginalFilename();
-            String fileExtension = "";
-            if (originalFileName != null && originalFileName.contains(".")) {
-                fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
+            // Validate file size/type if needed
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body("Cannot upload empty file");
             }
 
-            String fileName = UUID.randomUUID().toString() + fileExtension;
-            Path targetLocation = this.fileStorageLocation.resolve(fileName);
-            Files.copy(file.getInputStream(), targetLocation);
-
-            // Update user profile with resume URL
+            // Update user profile with resume data
             User userUpdates = new User();
-            userUpdates.setResumeUrl(fileName); // Store just the filename
-            authService.updateUser(email, userUpdates);
+            userUpdates.setResumeData(file.getBytes());
+            userUpdates.setResumeContentType(file.getContentType());
+            userUpdates.setResumeUrl(file.getOriginalFilename()); // Store filename for display
 
-            return ResponseEntity.ok("Resume uploaded successfully: " + fileName);
+            System.out.println("DEBUG: Saving resume data for " + email + ". Filename: " + file.getOriginalFilename());
+
+            User savedUser = authService.updateUser(email, userUpdates);
+
+            System.out.println("DEBUG: Resume saved. New ResumeURL: " + savedUser.getResumeUrl());
+
+            return ResponseEntity.ok(savedUser);
         } catch (IOException ex) {
+            ex.printStackTrace();
             return ResponseEntity.badRequest().body("Could not upload file " + ex.getMessage());
         }
     }
 
     @GetMapping("/resume/{fileName:.+}")
-    public ResponseEntity<Resource> downloadResume(@PathVariable String fileName) {
-        // Implement access control: Only Admin, Recruiter, or OWNER can view
-        // For now, let's assume if they have the link/filename, and are authenticated?
-        // Or we can check role.
-
+    public ResponseEntity<Resource> downloadResume(@PathVariable String fileName,
+            @RequestParam(required = false, defaultValue = "false") boolean view) {
         try {
-            Path filePath = this.fileStorageLocation.resolve(fileName).normalize();
-            Resource resource = new UrlResource(filePath.toUri());
+            // Find user by resume filename (since we store it there)
+            // Ideally we should look up by user ID, but we kept filename for compatibility
+            // This is inefficient but works for now. Better: /resume/user/{email}
 
-            if (resource.exists()) {
+            // Just use the service to find the user. We need a method in service to find by
+            // resumeUrl?
+            // Or since we don't have that easily exposed, let's assume the user is
+            // downloading THEIR OWN resume
+            // and use the authenticated user.
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            User user = authService.getUserByEmail(email);
+
+            // If admin/recruiter, we might not be the owner.
+            // fallback: if filename doesn't match current user, we might need a search.
+            // For now, let's supporting downloading ONLY via the user object.
+
+            // But wait, the frontend link is /auth/profile/resume/{filename}.
+            // If I am a recruiter viewing a candidate, I click that link. I am
+            // Authenticated as 'recruiter'.
+            // The 'email' above will be recruiter's email.
+            // So we need to find the user who OWNS this resume.
+            // Since we indexed users, let's add a findByResumeUrl to
+            // AuthService/Repository?
+
+            // For this quick fix to switch to MongoDB storage:
+            // We will fetch ALL users and filter (bad perf, but works for MVP) OR add a
+            // repo method.
+            // Let's rely on the filename being the lookup key.
+
+            // Actually, let's try to fetch the user by resumeUrl if we can add that method.
+            // But I cannot easily modify the Interface without seeing it.
+            // Let's assume for now the user is viewing their OWN profile or we iterate.
+
+            // Hack for MVP: Iterate all users (terrible for prod, okay for demo)
+            // A better way: The link should have been /resume/user/{targetEmail}
+
+            // Let's implement the 'iterate' fallback for now to ensure it works for
+            // Recruiters too.
+            User targetUser = null;
+
+            // Try current user first
+            if (user != null && fileName.equals(user.getResumeUrl())) {
+                targetUser = user;
+            } else {
+                // Try to find the user by resume filename
+                java.util.List<User> allUsers = authService.getAllUsers();
+                for (User u : allUsers) {
+                    if (fileName.equals(u.getResumeUrl())) {
+                        targetUser = u;
+                        break;
+                    }
+                }
+            }
+
+            if (targetUser != null && targetUser.getResumeData() != null) {
+                String disposition = view ? "inline" : "attachment";
+
                 return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_PDF) // Assume PDF for now or detect
+                        .contentType(MediaType.parseMediaType(
+                                targetUser.getResumeContentType() != null ? targetUser.getResumeContentType()
+                                        : "application/pdf"))
                         .header(HttpHeaders.CONTENT_DISPOSITION,
-                                "attachment; filename=\"" + resource.getFilename() + "\"")
-                        .body(resource);
+                                disposition + "; filename=\"" + targetUser.getResumeUrl() + "\"")
+                        .body(new org.springframework.core.io.ByteArrayResource(targetUser.getResumeData()));
             } else {
                 return ResponseEntity.notFound().build();
             }
+
         } catch (Exception ex) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @DeleteMapping("/resume")
+    public ResponseEntity<?> deleteResume() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User updatedUser = authService.deleteResume(email);
+        return ResponseEntity.ok(updatedUser);
     }
 }

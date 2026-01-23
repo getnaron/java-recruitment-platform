@@ -474,7 +474,7 @@
                             </div>
 
                             <div style="display: flex; align-items: center;">
-                                <button type="submit" id="saveProfileBtn" class="btn btn-primary" disabled
+                                <button type="submit" id="saveProfileBtn" class="btn btn-primary"
                                     style="width: auto; padding: 10px 24px;">Save Profile</button>
                                 <span id="profileSaveStatus"
                                     style="margin-left: 12px; color: var(--success-color); font-weight: 500; opacity: 0; transition: opacity 0.3s;">Saved!</span>
@@ -482,45 +482,104 @@
                         </form>
                     </div>
 
-                    <!-- Candidate Details Modal (For Recruiters) -->
-                    <div id="candidateDetailsModal" class="modal"
-                        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-                        <div
-                            style="background: white; padding: 30px; border-radius: var(--radius-md); width: 600px; max-width: 90%; max-height: 90vh; overflow-y: auto;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                                <h3 id="viewCandidateName" style="font-size: 20px; font-weight: 700;">Candidate Name
-                                </h3>
-                                <button onclick="closeCandidateModal()"
-                                    style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-                            </div>
+                </div>
 
-                            <div class="profile-view-grid" style="display: grid; gap: 15px;">
-                                <div><strong>Email:</strong> <span id="viewCandidateEmail"></span></div>
-                                <div><strong>Current Company:</strong> <span id="viewCandidateCompany"></span></div>
-                                <div><strong>Experience:</strong> <span id="viewCandidateExperience"></span> years</div>
-                                <div><strong>Education:</strong> <span id="viewCandidateEducation"></span></div>
-                                <div><strong>Skills:</strong> <span id="viewCandidateSkills"></span></div>
-                                <div>
-                                    <strong>Experience Detail:</strong>
-                                    <p id="viewCandidatePastExp"
-                                        style="background: var(--bg-hover); padding: 10px; border-radius: 4px; margin-top: 5px;">
-                                    </p>
-                                </div>
-                                <div id="viewCandidateResumeSection"
-                                    style="margin-top: 10px; padding: 10px; background: #ffebee; border-radius: 4px; color: #c62828; display: none;">
-                                    ⚠️ Resume access is restricted.
-                                </div>
+                + <!-- Job Details Modal (For Candidates) -->
+                + <div id="jobDetailsModal" class="modal" +
+                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+                    + <div +
+                        style="background: white; padding: 30px; border-radius: var(--radius-md); width: 600px; max-width: 90%; max-height: 90vh; overflow-y: auto;">
+                        + <div +
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            + <h3 id="viewJobTitle" style="font-size: 20px; font-weight: 700;">Job Title</h3>
+                            + <button onclick="closeJobModal()" +
+                                style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                            + </div>
+                        +
+                        + <div class="job-view-grid" style="display: grid; gap: 15px;">
+                            + <div><strong>Company:</strong> <span id="viewJobCompany"></span></div>
+                            + <div><strong>Requirements:</strong> <span id="viewJobRequirements"></span></div>
+                            + <div><strong>Salary:</strong> <span id="viewJobSalary"></span></div>
+                            + <div>
+                                + <strong>Description:</strong>
+                                + <p id="viewJobDescription" +
+                                    style="white-space: pre-wrap; background: var(--bg-hover); padding: 10px; border-radius: 4px; margin-top: 5px;">
+                                    + </p>
+                                + </div>
+                            +
+                            + <div id="applySection" +
+                                style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                                + <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 15px;">Apply for this
+                                    + position</h4>
+                                +
+                                + <div class="form-group">
+                                    + <label>Select Resume</label>
+                                    + <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+                                        + <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                            + <input type="radio" name="applyResumeSource" value="profile" checked +
+                                                onclick="toggleApplyResumeInput()">
+                                            + <span>Use my profile resume (<span +
+                                                    id="applyProfileResumeName">None</span>)</span>
+                                            + </label>
+                                        + <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                            + <input type="radio" name="applyResumeSource" value="new" +
+                                                onclick="toggleApplyResumeInput()">
+                                            + <span>Upload a new resume</span>
+                                            + </label>
+                                        + </div>
+                                    + </div>
+                                +
+                                + <div id="newApplyResumeContainer" style="display: none; margin-top: 15px;">
+                                    + <input type="file" id="applyNewResume" accept=".pdf" class="form-input">
+                                    + </div>
+                                +
+                                + <button id="applyBtn" class="btn btn-primary" style="margin-top: 20px;" +
+                                    onclick="handleApplyJob()">Submit Application</button>
+                                + <div id="applyStatus" style="margin-top: 10px; text-align: center;"></div>
+                                + </div>
+                            + </div>
+                        + </div>
+                    + </div>
+                +
+                <!-- Candidate Details Modal (For Recruiters) -->
+                <div id="candidateDetailsModal" class="modal"
+                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+                    <div
+                        style="background: white; padding: 30px; border-radius: var(--radius-md); width: 600px; max-width: 90%; max-height: 90vh; overflow-y: auto;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 id="viewCandidateName" style="font-size: 20px; font-weight: 700;">Candidate Name
+                            </h3>
+                            <button onclick="closeCandidateModal()"
+                                style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                        </div>
+
+                        <div class="profile-view-grid" style="display: grid; gap: 15px;">
+                            <div><strong>Email:</strong> <span id="viewCandidateEmail"></span></div>
+                            <div><strong>Current Company:</strong> <span id="viewCandidateCompany"></span></div>
+                            <div><strong>Experience:</strong> <span id="viewCandidateExperience"></span> years</div>
+                            <div><strong>Education:</strong> <span id="viewCandidateEducation"></span></div>
+                            <div><strong>Skills:</strong> <span id="viewCandidateSkills"></span></div>
+                            <div>
+                                <strong>Experience Detail:</strong>
+                                <p id="viewCandidatePastExp"
+                                    style="background: var(--bg-hover); padding: 10px; border-radius: 4px; margin-top: 5px;">
+                                </p>
+                            </div>
+                            <div id="viewCandidateResumeSection"
+                                style="margin-top: 10px; padding: 10px; background: #ffebee; border-radius: 4px; color: #c62828; display: none;">
+                                ⚠️ Resume access is restricted.
                             </div>
                         </div>
                     </div>
-
                 </div>
+
             </div>
         </div>
     </div>
+    </div>
 
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
 </body>
 
 </html>

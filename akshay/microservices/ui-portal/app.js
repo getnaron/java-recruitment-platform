@@ -202,16 +202,61 @@ async function validateTokenAndShowDashboard() {
             };
             showDashboard(currentUser);
         } else {
-            // Token is invalid, clear it
-            localStorage.removeItem('token');
-            currentToken = null;
-            currentUser = null;
+            // Only clear token if explicitly unauthorized
+            if (response.status === 401 || response.status === 403) {
+                localStorage.removeItem('token');
+                currentToken = null;
+                currentUser = null;
+                // Optional: redirect to login or show message
+            } else {
+                console.warn('Server error during validation, but keeping token:', response.status);
+                // Keep token but maybe show offline message? 
+                // For now, let's try to show dashboard anyway if we have cached user data? 
+                // Actually, if we can't fetch profile, we can't show dashboard correctly (roles etc).
+                // But we shouldn't logout on 500.
+                alert('Server seems to be having issues. Please try again later.');
+            }
         }
     } catch (error) {
-        console.error('Token validation error:', error);
-        localStorage.removeItem('token');
-        currentToken = null;
-        currentUser = null;
+        console.error('Token validation error (Network?):', error);
+        // Do NOT clear token on network error
+        alert('Network error. Please check if backend is running.');
+    }
+}
+
+async function refreshUserDataOnly() {
+    try {
+        console.log('REFRESH_DEBUG: Starting silent refresh...');
+        const response = await fetch(`${API_BASE_URL}/user/profile?t=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            },
+            cache: 'no-store'
+        });
+
+        if (response.ok) {
+            const userData = await response.json();
+            console.log('REFRESH_DEBUG: User data received:', JSON.stringify(userData));
+            currentUser = {
+                token: currentToken,
+                ...userData
+            };
+            // Update header info if it changed
+            if (document.getElementById('userName')) document.getElementById('userName').textContent = `Welcome, ${userData.firstName}!`;
+            if (document.getElementById('userEmail')) document.getElementById('userEmail').textContent = userData.email;
+            if (document.getElementById('avatarInitials')) document.getElementById('avatarInitials').textContent = getInitials(userData.firstName, userData.lastName);
+
+            // Re-populate form with normalized data from server (optional, but good for sync)
+            populateProfileForm(currentUser);
+        } else {
+            console.error('REFRESH_DEBUG: Server returned error:', response.status);
+        }
+    } catch (error) {
+        console.error('REFRESH_DEBUG: Silent refresh failed:', error);
     }
 }
 
@@ -377,7 +422,18 @@ function populateProfileForm(userData) {
 
     const resumeLink = document.getElementById('currentResumeLink');
     if (userData.resumeUrl) {
-        resumeLink.innerHTML = `Current Resume: <a href="${API_BASE_URL}/auth/profile/resume/${userData.resumeUrl}" target="_blank">Download</a>`;
+        console.log('Displaying resume link for:', userData.resumeUrl);
+        const safeUrl = encodeURIComponent(userData.resumeUrl);
+        resumeLink.innerHTML = `
+            <div style="background: rgba(var(--primary-rgb), 0.1); padding: 8px 12px; border-radius: 6px; margin-top: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2); display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">📄 ${userData.resumeUrl}</span>
+                <div style="display: flex; gap: 8px;">
+                    <a href="javascript:void(0)" onclick="viewResumeAsBlob('${safeUrl}')" class="btn btn-secondary btn-sm" style="width: auto; padding: 4px 10px; font-size: 11px;">View</a>
+                    <a href="javascript:void(0)" onclick="downloadResumeFile('${safeUrl}')" class="btn btn-primary btn-sm" style="width: auto; padding: 4px 10px; font-size: 11px;">Download</a>
+                    <a href="javascript:void(0)" onclick="handleDeleteResume()" class="btn btn-secondary btn-sm" style="width: auto; padding: 4px 10px; font-size: 11px; background: #fee2e2; color: #dc2626; border-color: #fecaca;">Delete</a>
+                </div>
+            </div>
+        `;
     } else {
         resumeLink.textContent = '';
     }
@@ -390,46 +446,48 @@ function populateProfileForm(userData) {
         candidateFields.style.display = 'block';
     }
 
+    // Force enable save button
+    document.getElementById('saveProfileBtn').disabled = false;
+
     // Capture initial state for change detection
     captureInitialProfileState();
 
     // Attach event listeners for dirty checking
     attachProfileChangeListeners();
 
+    // DO NOT disable save button initially - keep it active as requested
+    document.getElementById('saveProfileBtn').disabled = false;
+
+    // Attach event listeners for dirty checking using delegation
+    const profileView = document.getElementById('profileView');
+
+    // Actually, let's just attach distinct listeners to the inputs again but make sure we cover everything
+    const inputs = profileView.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => {
+        input.removeEventListener('input', checkProfileChanges);
+        input.removeEventListener('change', checkProfileChanges);
+        input.removeEventListener('keyup', checkProfileChanges);
+
+        input.addEventListener('input', checkProfileChanges);
+        input.addEventListener('change', checkProfileChanges);
+        input.addEventListener('keyup', checkProfileChanges);
+    });
+
     // Disable save button initially
-    document.getElementById('saveProfileBtn').disabled = true;
-}
-
-// Attach event listeners for dirty checking using delegation
-const profileView = document.getElementById('profileView');
-
-// Actually, let's just attach distinct listeners to the inputs again but make sure we cover everything
-const inputs = profileView.querySelectorAll('input, select, textarea');
-inputs.forEach(input => {
-    input.removeEventListener('input', checkProfileChanges);
-    input.removeEventListener('change', checkProfileChanges);
-    input.removeEventListener('keyup', checkProfileChanges);
-
-    input.addEventListener('input', checkProfileChanges);
-    input.addEventListener('change', checkProfileChanges);
-    input.addEventListener('keyup', checkProfileChanges);
-});
-
-// Disable save button initially
-document.getElementById('saveProfileBtn').disabled = true;
+    // document.getElementById('saveProfileBtn').disabled = true; // DISABLED LOGIC REMOVED
 }
 
 function captureInitialProfileState() {
     initialProfileState = {
-        firstName: (document.getElementById('profileFirstName').value || '').trim(),
-        lastName: (document.getElementById('profileLastName').value || '').trim(),
-        countryCode: (document.getElementById('profileCountryCode').value || '').trim(),
-        mobileNumber: (document.getElementById('profileMobileNumber').value || '').trim(),
-        currentCompany: (document.getElementById('profileCompany').value || '').trim(),
-        experienceYears: (document.getElementById('profileExperienceYears').value || '').trim(),
-        education: (document.getElementById('profileEducation').value || '').trim(),
-        skills: (document.getElementById('profileSkills').value || '').trim(),
-        pastExperience: (document.getElementById('profilePastExperience').value || '').trim()
+        firstName: document.getElementById('profileFirstName').value || '',
+        lastName: document.getElementById('profileLastName').value || '',
+        countryCode: document.getElementById('profileCountryCode').value || '',
+        mobileNumber: document.getElementById('profileMobileNumber').value || '',
+        currentCompany: document.getElementById('profileCompany').value || '',
+        experienceYears: document.getElementById('profileExperienceYears').value || '',
+        education: document.getElementById('profileEducation').value || '',
+        skills: document.getElementById('profileSkills').value || '',
+        pastExperience: document.getElementById('profilePastExperience').value || ''
     };
 }
 
@@ -440,15 +498,15 @@ function attachProfileChangeListeners() {
 
 function checkProfileChanges() {
     const currentState = {
-        firstName: (document.getElementById('profileFirstName').value || '').trim(),
-        lastName: (document.getElementById('profileLastName').value || '').trim(),
-        countryCode: (document.getElementById('profileCountryCode').value || '').trim(),
-        mobileNumber: (document.getElementById('profileMobileNumber').value || '').trim(),
-        currentCompany: (document.getElementById('profileCompany').value || '').trim(),
-        experienceYears: (document.getElementById('profileExperienceYears').value || '').trim(),
-        education: (document.getElementById('profileEducation').value || '').trim(),
-        skills: (document.getElementById('profileSkills').value || '').trim(),
-        pastExperience: (document.getElementById('profilePastExperience').value || '').trim()
+        firstName: document.getElementById('profileFirstName').value || '',
+        lastName: document.getElementById('profileLastName').value || '',
+        countryCode: document.getElementById('profileCountryCode').value || '',
+        mobileNumber: document.getElementById('profileMobileNumber').value || '',
+        currentCompany: document.getElementById('profileCompany').value || '',
+        experienceYears: document.getElementById('profileExperienceYears').value || '',
+        education: document.getElementById('profileEducation').value || '',
+        skills: document.getElementById('profileSkills').value || '',
+        pastExperience: document.getElementById('profilePastExperience').value || ''
     };
 
     // Check if file is selected (file input value is not empty)
@@ -458,7 +516,8 @@ function checkProfileChanges() {
     const hasChanged = !areObjectsEqual(currentState, initialProfileState) || isFileSelected;
 
     const saveBtn = document.getElementById('saveProfileBtn');
-    saveBtn.disabled = !hasChanged;
+    // saveBtn.disabled = !hasChanged; // REMOVED DISABLING LOGIC
+    saveBtn.disabled = false; // Always enable
 
     // Debug
     // console.log('Checking changes:', { hasChanged, currentState, initialProfileState });
@@ -512,10 +571,15 @@ async function handleProfileUpdate(e) {
         });
 
         if (!updateResponse.ok) throw new Error('Failed to update profile data');
+        const basicUserData = await updateResponse.json();
+
+        // Merge basic info update
+        currentUser = { ...currentUser, ...basicUserData };
 
         // 2. Upload resume if selected
         const resumeFile = document.getElementById('profileResume').files[0];
         if (resumeFile) {
+            console.log('Uploading resume:', resumeFile.name);
             const formData = new FormData();
             formData.append('file', resumeFile);
 
@@ -527,32 +591,112 @@ async function handleProfileUpdate(e) {
                 body: formData
             });
 
-
-
             if (!uploadResponse.ok) throw new Error('Failed to upload resume');
+
+            const resumeUserData = await uploadResponse.json();
+            // Merge resume update
+            currentUser = { ...currentUser, ...resumeUserData };
+            console.log('Resume upload complete. New URL:', currentUser.resumeUrl);
         }
 
-        // Show success status without popup
+        // Always force a full refresh from server to ensure perfect sync
+        await refreshUserDataOnly();
+
+        // Show success status
         const statusEl = document.getElementById('profileSaveStatus');
-        statusEl.style.opacity = '1';
+        if (statusEl) {
+            statusEl.innerText = 'Profile Updated Successfully!';
+            statusEl.style.opacity = '1';
+            setTimeout(() => {
+                statusEl.style.opacity = '0';
+            }, 3000);
+        }
 
-        // Update initial state to new current state
+        // Reset file input display but link should be updated by refreshUserDataOnly -> populateProfileForm
+        document.getElementById('profileResume').value = '';
         captureInitialProfileState();
-        document.getElementById('profileResume').value = ''; // clear file input
-        document.getElementById('saveProfileBtn').disabled = true;
-
-        setTimeout(() => {
-            statusEl.style.opacity = '0';
-        }, 3000);
-
-        // Quietly refresh dashboard data
-        validateTokenAndShowDashboard();
 
     } catch (error) {
         console.error('Profile update error:', error);
         alert('Error updating profile: ' + error.message);
     } finally {
         btn.classList.remove('loading');
+    }
+}
+
+async function viewResumeAsBlob(safeUrl) {
+    const resumeUrl = decodeURIComponent(safeUrl);
+    console.log('Attempting to view resume as blob:', resumeUrl);
+    if (!resumeUrl) return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/profile/resume/${safeUrl}?view=true`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const blob = await response.blob();
+        console.log('Blob received, size:', blob.size, 'type:', blob.type);
+        const blobUrl = URL.createObjectURL(blob);
+        const newWindow = window.open(blobUrl, '_blank');
+        if (!newWindow) {
+            alert('Popup blocked! Please allow popups to view the resume.');
+        }
+        // Revoke after a delay to allow the window to load
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (error) {
+        console.error('Error viewing resume:', error);
+        alert('Could not open resume for viewing: ' + error.message);
+    }
+}
+
+async function downloadResumeFile(safeUrl) {
+    const resumeUrl = decodeURIComponent(safeUrl);
+    if (!resumeUrl) return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/profile/resume/${safeUrl}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = resumeUrl;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        }, 100);
+    } catch (error) {
+        console.error('Download error:', error);
+        alert('Failed to download resume: ' + error.message);
+    }
+}
+
+async function handleDeleteResume() {
+    if (!confirm('Are you sure you want to delete your resume? This cannot be undone.')) return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/profile/resume`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!response.ok) throw new Error('Failed to delete resume');
+
+        // Update user state and UI
+        const updatedUser = await response.json();
+        currentUser = { ...currentUser, ...updatedUser };
+        populateProfileForm(currentUser);
+
+        // Show status
+        const statusEl = document.getElementById('profileSaveStatus');
+        if (statusEl) {
+            statusEl.innerText = 'Resume deleted successfully!';
+            statusEl.style.opacity = '1';
+            setTimeout(() => statusEl.style.opacity = '0', 3000);
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete resume: ' + error.message);
     }
 }
 
@@ -592,8 +736,21 @@ async function viewCandidateProfile(email) {
                 document.getElementById('viewCandidateSkills').textContent = candidate.skills || 'N/A';
                 document.getElementById('viewCandidatePastExp').textContent = candidate.pastExperience || 'No details provided.';
 
-                // Show resume warning
-                document.getElementById('viewCandidateResumeSection').style.display = 'block';
+                // Restrict resume section for Recruiters
+                const resumeSection = document.getElementById('viewCandidateResumeSection');
+                if (candidate.resumeUrl) {
+                    resumeSection.style.display = 'block';
+                    resumeSection.style.background = '#fafafa';
+                    resumeSection.style.color = 'var(--text-light)';
+                    resumeSection.style.border = '1px dashed var(--border-color)';
+                    resumeSection.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; padding: 10px; font-style: italic;">
+                            <span>Resume details are hidden from recruiters in this view.</span>
+                        </div>
+                    `;
+                } else {
+                    resumeSection.style.display = 'none';
+                }
 
                 document.getElementById('candidateDetailsModal').style.display = 'flex';
             }
@@ -709,6 +866,7 @@ async function fetchAvailableJobs() {
 }
 
 function renderJobItem(job) {
+    const isCandidate = currentUser && currentUser.role === 'CANDIDATE';
     return `
         <div class="user-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
@@ -716,12 +874,114 @@ function renderJobItem(job) {
                 <span class="badge" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">${job.companyName || 'Private'}</span>
             </div>
             <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.5;">${job.description}</p>
-            <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-light); margin-top: 4px;">
-                <span style="display: flex; align-items: center; gap: 4px;">💼 ${job.requirements}</span>
-                ${job.salary ? `<span style="display: flex; align-items: center; gap: 4px;">💰 $${job.salary.toLocaleString()}</span>` : ''}
+            <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-light); margin-top: 4px; width: 100%; justify-content: space-between; align-items: center;">
+                <div style="display: flex; gap: 16px;">
+                    <span style="display: flex; align-items: center; gap: 4px;">💼 ${job.requirements}</span>
+                    ${job.salary ? `<span style="display: flex; align-items: center; gap: 4px;">💰 $${job.salary.toLocaleString()}</span>` : ''}
+                </div>
+                ${isCandidate ? `<button class="btn btn-primary btn-sm" style="width: auto; padding: 4px 12px;" onclick="viewJobDetails('${job.id}')">View Details & Apply</button>` : ''}
             </div>
         </div>
     `;
+}
+
+let selectedJobId = null;
+
+async function viewJobDetails(jobId) {
+    selectedJobId = jobId;
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/all`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (response.ok) {
+            const jobs = await response.json();
+            const job = jobs.find(j => j.id === jobId);
+            if (job) {
+                document.getElementById('viewJobTitle').textContent = job.title;
+                document.getElementById('viewJobCompany').textContent = job.companyName || 'Private';
+                document.getElementById('viewJobRequirements').textContent = job.requirements;
+                document.getElementById('viewJobSalary').textContent = job.salary ? `$${job.salary.toLocaleString()}` : 'N/A';
+                document.getElementById('viewJobDescription').textContent = job.description;
+
+                // Resume Option
+                const profileResumeName = currentUser.resumeUrl || 'None';
+                document.getElementById('applyProfileResumeName').textContent = profileResumeName;
+
+                // Reset form
+                document.querySelector('input[name="applyResumeSource"][value="profile"]').checked = true;
+                toggleApplyResumeInput();
+                document.getElementById('applyStatus').textContent = '';
+                document.getElementById('applyBtn').disabled = false;
+
+                document.getElementById('jobDetailsModal').style.display = 'flex';
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching job details:', error);
+    }
+}
+
+function closeJobModal() {
+    document.getElementById('jobDetailsModal').style.display = 'none';
+    selectedJobId = null;
+}
+
+function toggleApplyResumeInput() {
+    const source = document.querySelector('input[name="applyResumeSource"]:checked').value;
+    const container = document.getElementById('newApplyResumeContainer');
+    container.style.display = source === 'new' ? 'block' : 'none';
+}
+
+async function handleApplyJob() {
+    const btn = document.getElementById('applyBtn');
+    const statusEl = document.getElementById('applyStatus');
+    const source = document.querySelector('input[name="applyResumeSource"]:checked').value;
+
+    const formData = new FormData();
+    formData.append('jobId', selectedJobId);
+
+    if (source === 'new') {
+        const fileInput = document.getElementById('applyNewResume');
+        if (fileInput.files.length === 0) {
+            alert('Please select a resume file to upload.');
+            return;
+        }
+        formData.append('file', fileInput.files[0]);
+    } else {
+        if (!currentUser.resumeUrl) {
+            alert('You do not have a resume in your profile. Please upload one or select "Upload a new resume".');
+            return;
+        }
+        formData.append('resumeName', currentUser.resumeUrl);
+    }
+
+    btn.disabled = true;
+    statusEl.innerHTML = '<span style="color: var(--primary-color);">Submitting application...</span>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/apply`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: formData
+        });
+
+        if (response.ok) {
+            statusEl.innerHTML = '<span style="color: var(--success-color);">Application submitted successfully!</span>';
+            setTimeout(() => {
+                closeJobModal();
+            }, 2000);
+        } else {
+            const error = await response.text();
+            statusEl.innerHTML = `<span style="color: var(--error-color);">${error}</span>`;
+            btn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Apply error:', error);
+        statusEl.innerHTML = '<span style="color: var(--error-color);">An error occurred. Please try again.</span>';
+        btn.disabled = false;
+    }
 }
 
 

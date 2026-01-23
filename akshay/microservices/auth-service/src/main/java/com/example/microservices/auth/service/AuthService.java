@@ -121,13 +121,26 @@ public class AuthService {
             user.setEducation(updatedUser.getEducation());
         if (updatedUser.getSkills() != null)
             user.setSkills(updatedUser.getSkills());
-        if (updatedUser.getResumeUrl() != null)
+        if (updatedUser.getResumeUrl() != null && !updatedUser.getResumeUrl().isEmpty())
             user.setResumeUrl(updatedUser.getResumeUrl());
+        if (updatedUser.getResumeData() != null && updatedUser.getResumeData().length > 0)
+            user.setResumeData(updatedUser.getResumeData());
+        if (updatedUser.getResumeContentType() != null)
+            user.setResumeContentType(updatedUser.getResumeContentType());
+
         if (updatedUser.getCountryCode() != null)
             user.setCountryCode(updatedUser.getCountryCode());
         if (updatedUser.getMobileNumber() != null)
             user.setMobileNumber(updatedUser.getMobileNumber());
 
+        return userRepository.save(user);
+    }
+
+    public User deleteResume(String email) {
+        User user = getUserByEmail(email);
+        user.setResumeUrl(null);
+        user.setResumeData(null);
+        user.setResumeContentType(null);
         return userRepository.save(user);
     }
 }
