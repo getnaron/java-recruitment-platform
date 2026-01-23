@@ -53,7 +53,9 @@ public class UserController {
         String authority = auth.getAuthorities().iterator().next().getAuthority();
         System.out.println("DEBUG: User checking candidates. Authority: " + authority);
 
-        if (authority.equals("ROLE_ADMIN") || authority.equals("ROLE_RECRUITER")) {
+        // Check for both with and without ROLE_ prefix
+        if (authority.equals("ROLE_ADMIN") || authority.equals("ROLE_RECRUITER") ||
+                authority.equals("ADMIN") || authority.equals("RECRUITER")) {
             return ResponseEntity.ok(authServiceClient.getUsersByRole("CANDIDATE"));
         }
         return ResponseEntity.status(403).body("Access denied: Only Admin and Recruiters can see candidates.");

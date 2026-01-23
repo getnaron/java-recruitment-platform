@@ -473,8 +473,12 @@
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary" style="width: auto; padding: 10px 24px;">Save
-                                Profile</button>
+                            <div style="display: flex; align-items: center;">
+                                <button type="submit" id="saveProfileBtn" class="btn btn-primary" disabled
+                                    style="width: auto; padding: 10px 24px;">Save Profile</button>
+                                <span id="profileSaveStatus"
+                                    style="margin-left: 12px; color: var(--success-color); font-weight: 500; opacity: 0; transition: opacity 0.3s;">Saved!</span>
+                            </div>
                         </form>
                     </div>
 

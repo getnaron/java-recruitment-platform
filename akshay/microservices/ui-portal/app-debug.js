@@ -400,55 +400,39 @@ function populateProfileForm(userData) {
     document.getElementById('saveProfileBtn').disabled = true;
 }
 
-// Attach event listeners for dirty checking using delegation
-const profileView = document.getElementById('profileView');
-
-// Actually, let's just attach distinct listeners to the inputs again but make sure we cover everything
-const inputs = profileView.querySelectorAll('input, select, textarea');
-inputs.forEach(input => {
-    input.removeEventListener('input', checkProfileChanges);
-    input.removeEventListener('change', checkProfileChanges);
-    input.removeEventListener('keyup', checkProfileChanges);
-
-    input.addEventListener('input', checkProfileChanges);
-    input.addEventListener('change', checkProfileChanges);
-    input.addEventListener('keyup', checkProfileChanges);
-});
-
-// Disable save button initially
-document.getElementById('saveProfileBtn').disabled = true;
-}
-
 function captureInitialProfileState() {
     initialProfileState = {
-        firstName: (document.getElementById('profileFirstName').value || '').trim(),
-        lastName: (document.getElementById('profileLastName').value || '').trim(),
-        countryCode: (document.getElementById('profileCountryCode').value || '').trim(),
-        mobileNumber: (document.getElementById('profileMobileNumber').value || '').trim(),
-        currentCompany: (document.getElementById('profileCompany').value || '').trim(),
-        experienceYears: (document.getElementById('profileExperienceYears').value || '').trim(),
-        education: (document.getElementById('profileEducation').value || '').trim(),
-        skills: (document.getElementById('profileSkills').value || '').trim(),
-        pastExperience: (document.getElementById('profilePastExperience').value || '').trim()
+        firstName: document.getElementById('profileFirstName').value,
+        lastName: document.getElementById('profileLastName').value,
+        countryCode: document.getElementById('profileCountryCode').value,
+        mobileNumber: document.getElementById('profileMobileNumber').value,
+        currentCompany: document.getElementById('profileCompany').value,
+        experienceYears: document.getElementById('profileExperienceYears').value,
+        education: document.getElementById('profileEducation').value,
+        skills: document.getElementById('profileSkills').value,
+        pastExperience: document.getElementById('profilePastExperience').value
     };
 }
 
-// Deprecated: attachProfileChangeListeners is replaced by inline logic in populateProfileForm or global init
 function attachProfileChangeListeners() {
-    // Kept empty to prevent errors if called elsewhere
+    const inputs = document.querySelectorAll('#profileView input, #profileView select, #profileView textarea');
+    inputs.forEach(input => {
+        input.addEventListener('input', checkProfileChanges);
+        input.addEventListener('change', checkProfileChanges); // For file input and select
+    });
 }
 
 function checkProfileChanges() {
     const currentState = {
-        firstName: (document.getElementById('profileFirstName').value || '').trim(),
-        lastName: (document.getElementById('profileLastName').value || '').trim(),
-        countryCode: (document.getElementById('profileCountryCode').value || '').trim(),
-        mobileNumber: (document.getElementById('profileMobileNumber').value || '').trim(),
-        currentCompany: (document.getElementById('profileCompany').value || '').trim(),
-        experienceYears: (document.getElementById('profileExperienceYears').value || '').trim(),
-        education: (document.getElementById('profileEducation').value || '').trim(),
-        skills: (document.getElementById('profileSkills').value || '').trim(),
-        pastExperience: (document.getElementById('profilePastExperience').value || '').trim()
+        firstName: document.getElementById('profileFirstName').value,
+        lastName: document.getElementById('profileLastName').value,
+        countryCode: document.getElementById('profileCountryCode').value,
+        mobileNumber: document.getElementById('profileMobileNumber').value,
+        currentCompany: document.getElementById('profileCompany').value,
+        experienceYears: document.getElementById('profileExperienceYears').value,
+        education: document.getElementById('profileEducation').value,
+        skills: document.getElementById('profileSkills').value,
+        pastExperience: document.getElementById('profilePastExperience').value
     };
 
     // Check if file is selected (file input value is not empty)
