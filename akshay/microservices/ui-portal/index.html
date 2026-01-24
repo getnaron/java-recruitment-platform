@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TalentHub - Recruitment Portal</title>
     <meta name="description" content="Recruitment Portal - Find and hire top talent">
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -260,6 +260,22 @@
                         <p id="userEmail"></p>
                     </div>
                 </div>
+                <button class="btn btn-secondary btn-sm" onclick="showMyApplicationsModal()" id="navApplicationsBtn"
+                    style="display: none; margin-right: 10px; background: rgba(var(--primary-rgb), 0.1); color: var(--primary-color); border-color: rgba(var(--primary-rgb), 0.2);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <span>My Apps</span>
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="showCandidatesModal()" id="navCandidatesBtn"
+                    style="display: none; margin-right: 10px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8zm14 14v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                    </svg>
+                    <span>Candidates</span>
+                </button>
                 <button class="btn btn-secondary btn-sm" onclick="scrollToProfile()" id="navProfileBtn"
                     style="display: none; margin-right: 10px;">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -308,12 +324,20 @@
                         </div>
 
                         <!-- Job Section for Candidates -->
-                        <div id="candidateJobSection"
-                            style="display: none; margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 32px;">
-                            <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 24px;">Available Jobs</h4>
-                            <div id="availableJobsList" class="user-list-container">
-                                <p style="text-align: center; color: var(--text-light); padding: 40px;">Checking for
-                                    available positions...</p>
+                        <div id="candidateJobSection" style="display: none;">
+                            <div
+                                style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 32px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                                    <h4 style="font-size: 18px; font-weight: 700;">Available Openings</h4>
+                                    <span id="jobCountBadge" class="badge"
+                                        style="background: var(--primary-light); color: var(--primary-color);">0
+                                        Active</span>
+                                </div>
+                                <div id="availableJobsList" class="user-list-container">
+                                    <p style="text-align: center; color: var(--text-light); padding: 40px;">Checking for
+                                        available positions...</p>
+                                </div>
                             </div>
                         </div>
 
@@ -380,12 +404,14 @@
                             <!-- List of Candidates for Recruiter -->
                             <div
                                 style="margin-top: 40px; border-top: 1px solid var(--border-color); padding-top: 32px;">
-                                <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 24px;">Candidates</h4>
-                                <div id="candidatesList" class="user-list-container">
-                                    <p style="text-align: center; color: var(--text-light); padding: 40px;">Checking for
-                                        candidates...</p>
+                                <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 24px;">Applications
+                                    Received</h4>
+                                <div id="applicationsList" class="user-list-container">
+                                    <p style="text-align: center; color: var(--text-light); padding: 40px;">No
+                                        applications yet.</p>
                                 </div>
                             </div>
+
                         </div>
                     </div>
 
@@ -484,98 +510,291 @@
 
                 </div>
 
-                + <!-- Job Details Modal (For Candidates) -->
-                + <div id="jobDetailsModal" class="modal" +
-                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-                    + <div +
-                        style="background: white; padding: 30px; border-radius: var(--radius-md); width: 600px; max-width: 90%; max-height: 90vh; overflow-y: auto;">
-                        + <div +
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            + <h3 id="viewJobTitle" style="font-size: 20px; font-weight: 700;">Job Title</h3>
-                            + <button onclick="closeJobModal()" +
-                                style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-                            + </div>
-                        +
-                        + <div class="job-view-grid" style="display: grid; gap: 15px;">
-                            + <div><strong>Company:</strong> <span id="viewJobCompany"></span></div>
-                            + <div><strong>Requirements:</strong> <span id="viewJobRequirements"></span></div>
-                            + <div><strong>Salary:</strong> <span id="viewJobSalary"></span></div>
-                            + <div>
-                                + <strong>Description:</strong>
-                                + <p id="viewJobDescription" +
-                                    style="white-space: pre-wrap; background: var(--bg-hover); padding: 10px; border-radius: 4px; margin-top: 5px;">
-                                    + </p>
-                                + </div>
-                            +
-                            + <div id="applySection" +
-                                style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
-                                + <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 15px;">Apply for this
-                                    + position</h4>
-                                +
-                                + <div class="form-group">
-                                    + <label>Select Resume</label>
-                                    + <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
-                                        + <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                            + <input type="radio" name="applyResumeSource" value="profile" checked +
-                                                onclick="toggleApplyResumeInput()">
-                                            + <span>Use my profile resume (<span +
-                                                    id="applyProfileResumeName">None</span>)</span>
-                                            + </label>
-                                        + <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                            + <input type="radio" name="applyResumeSource" value="new" +
-                                                onclick="toggleApplyResumeInput()">
-                                            + <span>Upload a new resume</span>
-                                            + </label>
-                                        + </div>
-                                    + </div>
-                                +
-                                + <div id="newApplyResumeContainer" style="display: none; margin-top: 15px;">
-                                    + <input type="file" id="applyNewResume" accept=".pdf" class="form-input">
-                                    + </div>
-                                +
-                                + <button id="applyBtn" class="btn btn-primary" style="margin-top: 20px;" +
-                                    onclick="handleApplyJob()">Submit Application</button>
-                                + <div id="applyStatus" style="margin-top: 10px; text-align: center;"></div>
-                                + </div>
-                            + </div>
-                        + </div>
-                    + </div>
-                +
-                <!-- Candidate Details Modal (For Recruiters) -->
-                <div id="candidateDetailsModal" class="modal"
-                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-                    <div
-                        style="background: white; padding: 30px; border-radius: var(--radius-md); width: 600px; max-width: 90%; max-height: 90vh; overflow-y: auto;">
+                <!-- Job Details Modal (For Candidates) -->
+                <div id="jobDetailsModal" class="modal"
+                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 3000; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease;">
+
+                    <div style="height: 100%; display: flex; flex-direction: column; width: 100%;">
+                        <!-- Header -->
                         <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h3 id="viewCandidateName" style="font-size: 20px; font-weight: 700;">Candidate Name
-                            </h3>
-                            <button onclick="closeCandidateModal()"
-                                style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                            style="background: var(--primary-color); padding: 32px 10%; color: white; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="flex: 1;">
+                                <span id="viewJobCompany"
+                                    style="text-transform: uppercase; font-size: 12px; font-weight: 800; letter-spacing: 0.1em; opacity: 0.8; margin-bottom: 8px; display: block;">COMPANY
+                                    NAME</span>
+                                <h3 id="viewJobTitle" style="font-size: 32px; font-weight: 800; line-height: 1.2;">Job
+                                    Title</h3>
+                                <div style="display: flex; gap: 24px; margin-top: 20px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div
+                                            style="background: rgba(255,255,255,0.2); padding: 6px; border-radius: 8px;">
+                                            💰</div>
+                                        <span id="viewJobSalary"
+                                            style="font-weight: 700; font-size: 16px;">$120,000</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div
+                                            style="background: rgba(255,255,255,0.2); padding: 6px; border-radius: 8px;">
+                                            💼</div>
+                                        <span id="viewJobRequirements"
+                                            style="font-weight: 700; font-size: 16px;">Requirements</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="closeJobModal()"
+                                style="background: rgba(255,255,255,0.2); border: none; width: 44px; height: 44px; border-radius: 12px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.2s; font-weight: 700;">&times;</button>
                         </div>
 
-                        <div class="profile-view-grid" style="display: grid; gap: 15px;">
-                            <div><strong>Email:</strong> <span id="viewCandidateEmail"></span></div>
-                            <div><strong>Current Company:</strong> <span id="viewCandidateCompany"></span></div>
-                            <div><strong>Experience:</strong> <span id="viewCandidateExperience"></span> years</div>
-                            <div><strong>Education:</strong> <span id="viewCandidateEducation"></span></div>
-                            <div><strong>Skills:</strong> <span id="viewCandidateSkills"></span></div>
-                            <div>
-                                <strong>Experience Detail:</strong>
-                                <p id="viewCandidatePastExp"
-                                    style="background: var(--bg-hover); padding: 10px; border-radius: 4px; margin-top: 5px;">
-                                </p>
+                        <div style="flex: 1; overflow-y: auto; background: #fdfdfd; padding: 60px 10%;">
+                            <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
+
+
+                                <div style="padding: 32px; max-height: 50vh; overflow-y: auto;">
+                                    <h4
+                                        style="font-size: 14px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+                                        The Role</h4>
+                                    <p id="viewJobDescription"
+                                        style="color: var(--text-secondary); line-height: 1.6; font-size: 16px; white-space: pre-wrap; margin-bottom: 32px;">
+                                    </p>
+
+                                    <div id="applySection"
+                                        style="background: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                        <h4
+                                            style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                            <span>Apply Now</span>
+                                        </h4>
+
+                                        <div style="display: grid; gap: 16px;">
+                                            <label
+                                                style="border: 2px solid var(--border-color); padding: 16px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; transition: all 0.2s;"
+                                                class="resume-opt">
+                                                <input type="radio" name="applyResumeSource" value="profile" checked
+                                                    onclick="toggleApplyResumeInput()"
+                                                    style="width: 18px; height: 18px; accent-color: var(--primary-color);">
+                                                <div style="margin-left: 12px;">
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1e293b;">Use
+                                                        Professional Profile</div>
+                                                    <div style="font-size: 12px; color: var(--text-light);">Current
+                                                        file: <span id="applyProfileResumeName"
+                                                            style="color: var(--primary-color); font-weight: 600;">resume.pdf</span>
+                                                    </div>
+                                                </div>
+                                            </label>
+
+                                            <label
+                                                style="border: 2px solid var(--border-color); padding: 16px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; transition: all 0.2s;"
+                                                class="resume-opt">
+                                                <input type="radio" name="applyResumeSource" value="new"
+                                                    onclick="toggleApplyResumeInput()"
+                                                    style="width: 18px; height: 18px; accent-color: var(--primary-color);">
+                                                <div style="margin-left: 12px;">
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1e293b;">
+                                                        Upload New
+                                                        Version</div>
+                                                    <div style="font-size: 12px; color: var(--text-light);">Select a
+                                                        specific
+                                                        file for this role</div>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div id="newApplyResumeContainer"
+                                            style="display: none; margin-top: 16px; animation: fadeIn 0.3s ease;">
+                                            <input type="file" id="applyNewResume" accept=".pdf" class="form-input"
+                                                style="background: white;">
+                                        </div>
+                                    </div>
+                                </div>
+
                             </div>
-                            <div id="viewCandidateResumeSection"
-                                style="margin-top: 10px; padding: 10px; background: #ffebee; border-radius: 4px; color: #c62828; display: none;">
-                                ⚠️ Resume access is restricted.
-                            </div>
+                        </div>
+
+                        <!-- Footer Actions -->
+                        <div
+                            style="padding: 32px 10%; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: white;">
+                            <div id="applyStatus"
+                                style="position: absolute; left: 10%; font-size: 15px; font-weight: 700;"></div>
+                            <button id="applyBtn" class="btn btn-primary"
+                                style="width: auto; min-width: 400px; padding: 18px 60px; font-size: 18px; font-weight: 800; border-radius: 14px; box-shadow: 0 10px 25px -4px var(--primary-light);"
+                                onclick="handleApplyJob()">Confirm Application</button>
                         </div>
                     </div>
                 </div>
 
+                <!-- My Applications Modal (For Candidates) -->
+                <div id="myApplicationsModal" class="modal"
+                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 3000; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease;">
+
+                    <div style="height: 100%; display: flex; flex-direction: column; width: 100%;">
+
+
+                        <!-- Header -->
+                        <div
+                            style="background: #f8fafc; padding: 28px 32px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">
+                                    Job Status Center</h3>
+                                <p style="font-size: 14px; color: #64748b; margin-top: 4px;">Real-time updates on your
+                                    active applications</p>
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <button class="btn btn-secondary btn-sm" onclick="fetchMyApplications()"
+                                    style="width: auto; padding: 8px 16px; display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #e2e8f0; font-weight: 600;">
+                                    <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2.5">
+                                        <path d="M4 4v5h5M20 20v-5h-5M20 4.14A10 10 0 1014 21" />
+                                    </svg>
+                                    <span>Refresh</span>
+                                </button>
+                                <button onclick="closeMyApplicationsModal()"
+                                    style="background: #fee2e2; border: none; width: 36px; height: 36px; border-radius: 10px; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: all 0.2s; font-weight: 700;">&times;</button>
+                            </div>
+                        </div>
+
+                        <!-- Content -->
+                        <div style="flex: 1; overflow-y: auto; background: #fdfdfd; padding: 40px 10%;">
+                            <div id="myApplicationsList" style="max-width: 1200px; margin: 0 auto; width: 100%;">
+                                <!-- Populated via JS -->
+                                <div style="text-align: center; padding: 100px;">
+                                    <div class="loader-spinner" style="margin: 0 auto 20px;"></div>
+                                    <p style="color: var(--text-light); font-size: 18px;">Retrieving your application
+                                        history...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
         </div>
+
+        <!-- Candidates Modal (For Recruiters) -->
+        <div id="candidatesModal" class="modal"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 3000; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease;">
+
+            <div style="height: 100%; display: flex; flex-direction: column; width: 100%;">
+                <!-- Header -->
+                <div
+                    style="background: #f8fafc; padding: 28px 32px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">Talent
+                            Pool</h3>
+                        <p style="font-size: 14px; color: #64748b; margin-top: 4px;">Browse and discover potential
+                            candidates</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <button class="btn btn-secondary btn-sm"
+                            onclick="fetchUsersByRole('CANDIDATE', 'candidatesList')"
+                            style="width: auto; padding: 8px 16px; display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #e2e8f0; font-weight: 600;">
+                            <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2.5">
+                                <path d="M4 4v5h5M20 20v-5h-5M20 4.14A10 10 0 1014 21" />
+                            </svg>
+                            <span>Refresh Pool</span>
+                        </button>
+                        <button onclick="closeCandidatesModal()"
+                            style="background: #fee2e2; border: none; width: 36px; height: 36px; border-radius: 10px; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: all 0.2s; font-weight: 700;">&times;</button>
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div style="flex: 1; overflow-y: auto; background: #fdfdfd; padding: 40px 10%;">
+                    <div id="candidatesList"
+                        style="max-width: 1200px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px;">
+                        <!-- Populated via JS -->
+                        <div style="text-align: center; padding: 100px; grid-column: 1 / -1;">
+                            <div class="loader-spinner" style="margin: 0 auto 20px;"></div>
+                            <p style="color: var(--text-light); font-size: 18px;">Surfacing top talent...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate Details Modal (For Recruiters) -->
+        <div id="candidateDetailsModal" class="modal"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 4000; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease;">
+
+            <div style="height: 100%; display: flex; flex-direction: column; width: 100%;">
+                <!-- Header -->
+                <div
+                    style="background: #f8fafc; padding: 28px 10%; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 id="viewCandidateName"
+                            style="font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">
+                            Candidate Name</h3>
+                        <p style="font-size: 14px; color: #64748b; margin-top: 4px;">Comprehensive professional profile
+                            assessment</p>
+                    </div>
+                    <button onclick="closeCandidateModal()"
+                        style="background: #fee2e2; border: none; width: 44px; height: 44px; border-radius: 12px; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.2s; font-weight: 700;">&times;</button>
+                </div>
+
+                <!-- Content -->
+                <div style="flex: 1; overflow-y: auto; background: #ffffff; padding: 60px 10%;">
+                    <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
+                        <div class="profile-view-grid"
+                            style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px;">
+                            <div
+                                style="background: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #f1f5f9;">
+                                <label
+                                    style="text-transform: uppercase; font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.1em;">Contact
+                                    Email</label>
+                                <div id="viewCandidateEmail"
+                                    style="font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 8px;"></div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #f1f5f9;">
+                                <label
+                                    style="text-transform: uppercase; font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.1em;">Current
+                                    Company</label>
+                                <div id="viewCandidateCompany"
+                                    style="font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 8px;"></div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #f1f5f9;">
+                                <label
+                                    style="text-transform: uppercase; font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.1em;">Total
+                                    Experience</label>
+                                <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 8px;"><span
+                                        id="viewCandidateExperience"></span> Years Professional</div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #f1f5f9;">
+                                <label
+                                    style="text-transform: uppercase; font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.1em;">Highest
+                                    Education</label>
+                                <div id="viewCandidateEducation"
+                                    style="font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 8px;"></div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #f1f5f9; grid-column: span 2;">
+                                <label
+                                    style="text-transform: uppercase; font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.1em;">Core
+                                    Skills</label>
+                                <div id="viewCandidateSkills"
+                                    style="font-size: 20px; font-weight: 800; color: var(--primary-color); margin-top: 12px;">
+                                </div>
+                            </div>
+                            <div style="grid-column: span 2; margin-top: 12px;">
+                                <h4 style="font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 16px;">
+                                    Professional Experience & Bio</h4>
+                                <div id="viewCandidatePastExp"
+                                    style="background: #ffffff; padding: 32px; border-radius: 16px; border: 2px solid #f1f5f9; font-size: 16px; line-height: 1.8; color: #475569; white-space: pre-wrap;">
+                                </div>
+                            </div>
+                            <div id="viewCandidateResumeSection"
+                                style="grid-column: span 2; margin-top: 20px; padding: 24px; background: #fff5f5; border-radius: 16px; border: 1px solid #fed7d7; color: #c53030; display: none; text-align: center; font-weight: 600;">
+                                ⚠️ Document Access Limited: Resume requires active application review.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    </div>
     </div>
     </div>
 

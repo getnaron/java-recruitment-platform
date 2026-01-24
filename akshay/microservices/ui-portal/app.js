@@ -262,6 +262,7 @@ async function refreshUserDataOnly() {
 
 // Show Dashboard
 function showDashboard(userData) {
+    currentUser = userData;
     const authCard = document.getElementById('authCard');
     const dashboard = document.getElementById('dashboard');
     const userName = document.getElementById('userName');
@@ -293,11 +294,14 @@ function showDashboard(userData) {
         fetchUsersByRole('ALL'); // Custom flag for admin
     } else if (role === 'RECRUITER') {
         roleTitle.textContent = "🎉 Welcome Recruiter!";
-        roleDescription.textContent = "You can view all candidates and manage your job openings.";
+        roleDescription.textContent = "Manage your job openings and discover top talent.";
         roleVisibleSection.style.display = 'none';
         recruiterJobSection.style.display = 'block';
         document.getElementById('navProfileBtn').style.display = 'flex';
-        fetchUsersByRole('CANDIDATE', 'candidatesList');
+        document.getElementById('navApplicationsBtn').style.display = 'none';
+        document.getElementById('navCandidatesBtn').style.display = 'flex';
+
+        fetchApplications();
         fetchJobs();
     } else {
         roleTitle.textContent = "🎉 Welcome Candidate!";
@@ -306,9 +310,10 @@ function showDashboard(userData) {
         recruiterJobSection.style.display = 'none';
         document.getElementById('candidateJobSection').style.display = 'block';
         document.getElementById('navProfileBtn').style.display = 'flex';
-        // Hide profile button on click logic is handled in toggle
+        document.getElementById('navApplicationsBtn').style.display = 'flex';
 
         fetchAvailableJobs();
+        fetchMyApplications();
 
         // Ensure we start on dashboard
         showDashboardView();
@@ -327,7 +332,10 @@ async function fetchUsersByRole(target, containerId = 'usersList') {
     const usersList = document.getElementById(containerId);
     if (!usersList) return;
 
-    usersList.innerHTML = '<p class="text-secondary" style="font-size: 14px;">Loading users...</p>';
+    const isModalContainer = containerId === 'candidatesList';
+    const loadingText = isModalContainer ? '<div style="text-align: center; padding: 100px; grid-column: 1 / -1;"><div class="loader-spinner" style="margin: 0 auto 20px;"></div><p style="color: var(--text-light); font-size: 18px;">Surfacing top talent...</p></div>' : '<p class="text-secondary" style="font-size: 14px;">Loading users...</p>';
+
+    usersList.innerHTML = loadingText;
 
     let endpoint = '/user/candidates';
     if (target === 'ALL') endpoint = '/user/all';
@@ -343,30 +351,114 @@ async function fetchUsersByRole(target, containerId = 'usersList') {
         if (response.ok) {
             const users = await response.json();
             if (users.length === 0) {
-                usersList.innerHTML = '<p class="text-secondary" style="font-size: 14px;">No users found.</p>';
+                const emptyText = isModalContainer ? '<div style="text-align: center; color: var(--text-light); padding: 80px 40px; background: #fff; border-radius: 12px; border: 2px dashed #e2e8f0; grid-column: 1 / -1; width: 100%;"><span style="font-size: 48px; display: block; margin-bottom: 20px;">👥</span><h4 style="color: #1e293b; font-weight: 700;">No candidates yet</h4><p style="font-size: 14px; color: #64748b;">The talent pool is currently empty.</p></div>' : '<p class="text-secondary" style="font-size: 14px;">No users found.</p>';
+                usersList.innerHTML = emptyText;
                 return;
             }
 
-            usersList.innerHTML = users.map(user => `
-                <div class="user-item">
-                    <div class="user-item-info">
-                        <h5>${user.firstName} ${user.lastName}</h5>
-                        <p>${user.email}</p>
+            usersList.innerHTML = users.map(user => {
+                if (isModalContainer) {
+                    return `
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);" class="app-card-hover">
+                            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
+                                <div style="width: 48px; height: 48px; border-radius: 12px; background: var(--primary-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px;">
+                                    ${getInitials(user.firstName, user.lastName)}
+                                </div>
+                                <div>
+                                    <h5 style="font-size: 16px; font-weight: 800; color: #0f172a; margin: 0;">${user.firstName} ${user.lastName}</h5>
+                                    <p style="font-size: 12px; color: #64748b; margin: 0;">${user.email}</p>
+                                </div>
+                            </div>
+                            <div style="background: #f8fafc; border-radius: 10px; padding: 12px; margin-bottom: 16px;">
+                                <div style="font-size: 12px; color: #64748b;">Specialization</div>
+                                <div style="font-size: 13px; color: #1e293b; font-weight: 700;">${user.role}</div>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="width: 100%; border-radius: 8px;">View Full Profile</button>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="user-item">
+                        <div class="user-item-info">
+                            <h5>${user.firstName} ${user.lastName}</h5>
+                            <p>${user.email}</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span class="badge">${user.role}</span>
+                            ${user.role === 'CANDIDATE' ?
+                        `<button class="btn btn-secondary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="padding: 4px 12px; font-size: 12px;">View Profile</button>`
+                        : ''}
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <span class="badge">${user.role}</span>
-                        ${user.role === 'CANDIDATE' ?
-                    `<button class="btn btn-secondary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="padding: 4px 12px; font-size: 12px;">View Profile</button>`
-                    : ''}
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         } else {
             usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Failed to load users.</p>';
         }
     } catch (error) {
         console.error('Fetch users error:', error);
         usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Connection error.</p>';
+    }
+}
+
+async function fetchApplications() {
+    const listEl = document.getElementById('applicationsList');
+    if (!listEl) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/applications/my-jobs`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const apps = await response.json();
+            if (apps.length === 0) {
+                listEl.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No applications received yet.</p>';
+                return;
+            }
+
+            // Fetch jobs to get titles
+            const jobsResponse = await fetch(`${API_BASE_URL}/job/all`, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+            const allJobs = jobsResponse.ok ? await jobsResponse.json() : [];
+            const jobMap = {};
+            allJobs.forEach(j => jobMap[j.id] = j.title);
+
+            listEl.innerHTML = apps.map(app => `
+                <div class="user-item">
+                    <div class="user-item-info">
+                        <h5><span style="color: var(--primary-color);">${app.candidateEmail}</span> applied for <strong>${jobMap[app.jobId] || 'Unknown Position'}</strong></h5>
+                        <p style="font-size: 12px; color: var(--text-light);">Applied on: ${new Date(app.appliedAt).toLocaleDateString()} at ${new Date(app.appliedAt).toLocaleTimeString()}</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-secondary btn-sm" onclick="viewApplicationResumeAsBlob('${app.id}')" style="padding: 4px 12px; font-size: 11px;">View Resume</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Fetch applications error:', error);
+    }
+}
+
+async function viewApplicationResumeAsBlob(applicationId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/application/resume/${applicationId}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const newWindow = window.open(blobUrl, '_blank');
+        if (!newWindow) {
+            alert('Popup blocked! Please allow popups.');
+        }
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (error) {
+        console.error('Error viewing resume:', error);
+        alert('Could not open resume for viewing: ' + error.message);
     }
 }
 
@@ -394,6 +486,8 @@ function handleLogout() {
     document.getElementById('recruiterJobSection').style.display = 'none';
     document.getElementById('candidateJobSection').style.display = 'none';
     document.getElementById('roleVisibleSection').style.display = 'none';
+    document.getElementById('navApplicationsBtn').style.display = 'none';
+    document.getElementById('navProfileBtn').style.display = 'none';
 
     // Reset forms
     document.getElementById('loginForm').reset();
@@ -845,28 +939,172 @@ async function fetchJobs() {
     }
 }
 
+// Helper to handle all ID formats (Mongo, JSON, etc)
+function normalizeId(obj) {
+    if (!obj) return "";
+    if (typeof obj === 'string') return obj.trim();
+    if (obj.$oid) return obj.$oid;
+    if (obj.id) return normalizeId(obj.id);
+    if (obj._id) return normalizeId(obj._id);
+    return obj.toString().trim();
+}
+
 async function fetchAvailableJobs() {
-    const jobsList = document.getElementById('availableJobsList');
+    const listEl = document.getElementById('availableJobsList');
+    if (!listEl) return;
+
     try {
-        const response = await fetch(`${API_BASE_URL}/job/all`, {
+        console.log("REFRESH: Fetching available jobs from backend...");
+
+        const response = await fetch(`${API_BASE_URL}/job/available`, {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
 
         if (response.ok) {
-            const jobs = await response.json();
-            if (jobs.length === 0) {
-                jobsList.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No available jobs at the moment.</p>';
+            const availableJobs = await response.json();
+            console.log("DEBUG: Available jobs from server:", availableJobs.length);
+
+            // Update badge
+            const badge = document.getElementById('jobCountBadge');
+            if (badge) {
+                badge.textContent = `${availableJobs.length} Active`;
+            }
+
+            if (availableJobs.length === 0) {
+                listEl.innerHTML = `
+                    <div style="text-align: center; color: var(--text-light); padding: 60px 40px; background: #f8fafc; border-radius: 16px; border: 2px dashed #e2e8f0; margin-top: 10px;">
+                        <div style="font-size: 40px; margin-bottom: 16px;">🔍</div>
+                        <p style="font-size: 16px; font-weight: 600; color: #1e293b;">No New Jobs Found</p>
+                        <p style="font-size: 14px; margin-top: 4px;">You've applied to all current openings or there are no new posts.</p>
+                        <button class="btn btn-secondary btn-sm" onclick="fetchAvailableJobs()" style="margin-top: 20px; width: auto; padding: 8px 20px;">Refresh List</button>
+                    </div>`;
                 return;
             }
-            jobsList.innerHTML = jobs.map(renderJobItem).join('');
+
+            listEl.innerHTML = availableJobs.map(renderJobItem).join('');
+        } else {
+            console.error("DEBUG: Failed to fetch available jobs, status:", response.status);
+            listEl.innerHTML = '<p class="text-error">Unable to load jobs. Please try logging in again.</p>';
         }
     } catch (error) {
         console.error('Fetch jobs error:', error);
+        listEl.innerHTML = '<p class="text-error">Connection error occurred while checking for jobs.</p>';
+    }
+}
+
+async function fetchMyApplications() {
+    const listEl = document.getElementById('myApplicationsList');
+    if (!listEl) return;
+
+    try {
+        console.log("DEBUG: Refreshing application tracker...");
+        const response = await fetch(`${API_BASE_URL}/job/applications/my-applications`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const apps = await response.json();
+
+            if (apps.length === 0) {
+                listEl.innerHTML = `
+                    <div style="text-align: center; color: var(--text-light); padding: 80px 40px; background: #fff; border-radius: 12px; border: 2px dashed #e2e8f0; margin: 20px;">
+                        <span style="font-size: 48px; display: block; margin-bottom: 20px;">📂</span>
+                        <h4 style="color: #1e293b; font-weight: 700; margin-bottom: 8px;">No active applications</h4>
+                        <p style="font-size: 14px; color: #64748b;">Applied jobs will appear here for tracking.</p>
+                        <button class="btn btn-primary btn-sm" onclick="closeMyApplicationsModal()" style="margin-top: 24px; width: auto; padding: 10px 24px;">Browse Available Jobs</button>
+                    </div>`;
+                return;
+            }
+
+            // Parallel fetch for job details to map titles
+            const allJobsResponse = await fetch(`${API_BASE_URL}/job/all`, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+            const allJobs = allJobsResponse.ok ? await allJobsResponse.json() : [];
+            const jobMap = {};
+            allJobs.forEach(j => jobMap[normalizeId(j)] = j);
+
+            // Sort by applied date (newest first)
+            apps.sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt));
+
+            listEl.innerHTML = apps.map(app => {
+                const jobId = normalizeId(app.jobId);
+                const job = jobMap[jobId] || { title: 'Position Archive', companyName: 'Company' };
+
+                // Consistency: Normalize "APPLIED" to "SUBMITTED" for display
+                let rawStatus = (app.status || 'SUBMITTED').toUpperCase();
+                const status = (rawStatus === 'APPLIED') ? 'SUBMITTED' : rawStatus;
+
+                // Dynamic Status Styling
+                let statusConfig = {
+                    color: '#3498db',
+                    bg: 'rgba(52, 152, 219, 0.08)',
+                    border: 'rgba(52, 152, 219, 0.25)',
+                    icon: '📝',
+                    desc: 'Application received'
+                };
+
+                if (status === 'REVIEWING' || status === 'REVIEWED') {
+                    statusConfig = { color: '#f39c12', bg: 'rgba(243, 156, 18, 0.08)', border: 'rgba(243, 156, 18, 0.25)', icon: '👀', desc: 'Recruiter is reviewing' };
+                } else if (status === 'REJECTED') {
+                    statusConfig = { color: '#e74c3c', bg: 'rgba(231, 76, 60, 0.08)', border: 'rgba(231, 76, 60, 0.25)', icon: '🛑', desc: 'Not selected this time' };
+                } else if (status === 'SELECTED' || status === 'ACCEPTED') {
+                    statusConfig = { color: '#27ae60', bg: 'rgba(39, 174, 96, 0.08)', border: 'rgba(39, 174, 96, 0.25)', icon: '🎉', desc: 'Congratulations!' };
+                }
+
+                return `
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; margin-bottom: 20px; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01);" class="app-card-hover">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <h5 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0;">${job.title}</h5>
+                                    <span style="font-size: 10px; padding: 2px 8px; background: #f1f5f9; color: #64748b; border-radius: 100px; font-weight: 700;">ID: ${jobId.substring(0, 8)}</span>
+                                </div>
+                                <p style="font-size: 14px; font-weight: 600; color: var(--primary-color); margin: 0; display: flex; align-items: center; gap: 6px;">
+                                    <span>🏢 ${job.companyName}</span>
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: ${statusConfig.bg}; border: 1px solid ${statusConfig.border}; border-radius: 10px;">
+                                    <span style="font-size: 12px;">${statusConfig.icon}</span>
+                                    <span style="font-size: 12px; font-weight: 800; color: ${statusConfig.color}; letter-spacing: 0.02em;">${status}</span>
+                                </div>
+                                <div style="margin-top: 6px; font-size: 11px; color: #94a3b8; font-weight: 500;">Applied ${new Date(app.appliedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                            </div>
+                        </div>
+
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; border: 1px solid #f1f5f9;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 36px; height: 36px; background: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #ef4444;">
+                                        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #64748b; font-weight: 500;">Submitted Resume</div>
+                                        <div style="font-size: 13px; color: #1e293b; font-weight: 700;">${app.resumeUrl || 'Standard_Resume.pdf'}</div>
+                                    </div>
+                                </div>
+                                <div style="height: 4px; width: 100px; background: #e2e8f0; border-radius: 10px; overflow: hidden; margin-left: 20px;">
+                                    <div style="height: 100%; width: ${status === 'SUBMITTED' ? '25%' : (status.includes('REVIEW') ? '60%' : '100%')}; background: ${statusConfig.color}; border-radius: 10px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    } catch (error) {
+        console.error('Fetch applications error:', error);
+        listEl.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--error-color);">Unable to sync with application servers.</div>';
     }
 }
 
 function renderJobItem(job) {
     const isCandidate = currentUser && currentUser.role === 'CANDIDATE';
+    const jobId = normalizeId(job);
     return `
         <div class="user-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
@@ -879,7 +1117,7 @@ function renderJobItem(job) {
                     <span style="display: flex; align-items: center; gap: 4px;">💼 ${job.requirements}</span>
                     ${job.salary ? `<span style="display: flex; align-items: center; gap: 4px;">💰 $${job.salary.toLocaleString()}</span>` : ''}
                 </div>
-                ${isCandidate ? `<button class="btn btn-primary btn-sm" style="width: auto; padding: 4px 12px;" onclick="viewJobDetails('${job.id}')">View Details & Apply</button>` : ''}
+                ${isCandidate ? `<button class="btn btn-primary btn-sm" style="width: auto; padding: 4px 12px;" onclick="viewJobDetails('${jobId}')">View Details & Apply</button>` : ''}
             </div>
         </div>
     `;
@@ -969,9 +1207,13 @@ async function handleApplyJob() {
 
         if (response.ok) {
             statusEl.innerHTML = '<span style="color: var(--success-color);">Application submitted successfully!</span>';
-            setTimeout(() => {
+
+            // Critical: Wait small delay to ensure DB persistence and then fully refresh UI state
+            setTimeout(async () => {
+                await fetchAvailableJobs();
+                await fetchMyApplications();
                 closeJobModal();
-            }, 2000);
+            }, 1500);
         } else {
             const error = await response.text();
             statusEl.innerHTML = `<span style="color: var(--error-color);">${error}</span>`;
@@ -1002,4 +1244,23 @@ function showDashboardView() {
 // Override the old scroll function to just switch views
 function scrollToProfile() {
     showProfileView();
+}
+
+function showMyApplicationsModal() {
+    document.getElementById('myApplicationsModal').style.display = 'flex';
+    fetchMyApplications(); // Refresh on open
+}
+
+function closeMyApplicationsModal() {
+    document.getElementById('myApplicationsModal').style.display = 'none';
+}
+
+function showCandidatesModal() {
+    const modal = document.getElementById('candidatesModal');
+    modal.style.display = 'flex';
+    fetchUsersByRole('CANDIDATE', 'candidatesList');
+}
+
+function closeCandidatesModal() {
+    document.getElementById('candidatesModal').style.display = 'none';
 }

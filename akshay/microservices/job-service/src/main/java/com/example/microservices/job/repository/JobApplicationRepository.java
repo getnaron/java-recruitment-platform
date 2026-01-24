@@ -9,5 +9,7 @@ public interface JobApplicationRepository extends MongoRepository<JobApplication
 
     List<JobApplication> findByCandidateEmail(String candidateEmail);
 
+    List<JobApplication> findByJobIdIn(List<String> jobIds);
+
     boolean existsByJobIdAndCandidateEmail(String jobId, String candidateEmail);
 }
