@@ -43,6 +43,7 @@ public class UserController {
         profile.put("resumeUrl", user.getResumeUrl());
         profile.put("countryCode", user.getCountryCode());
         profile.put("mobileNumber", user.getMobileNumber());
+        profile.put("isPremium", user.isPremium());
 
         return ResponseEntity.ok(profile);
     }

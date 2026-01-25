@@ -92,9 +92,15 @@ function checkPasswordStrength(e) {
 async function handleLogin(e) {
     e.preventDefault();
 
-    const email = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
     const loginBtn = document.getElementById('loginBtn');
+
+    // Validate email format (allow 'admin' as special case)
+    if (email !== 'admin' && !email.includes('@')) {
+        showAlert('loginAlert', 'Please enter a valid email address', 'error');
+        return;
+    }
 
     // Show loading state
     loginBtn.classList.add('loading');
@@ -241,6 +247,10 @@ async function refreshUserDataOnly() {
         if (response.ok) {
             const userData = await response.json();
             console.log('REFRESH_DEBUG: User data received:', JSON.stringify(userData));
+
+            // Normalize premium field
+            userData.isPremium = userData.premium || userData.isPremium || false;
+
             currentUser = {
                 token: currentToken,
                 ...userData
@@ -262,7 +272,10 @@ async function refreshUserDataOnly() {
 
 // Show Dashboard
 function showDashboard(userData) {
+    // Normalize premium field - backend returns 'premium', we use 'isPremium'
+    userData.isPremium = userData.premium || userData.isPremium || false;
     currentUser = userData;
+    console.log('Dashboard loaded for user:', userData.email, 'Premium:', currentUser.isPremium);
     const authCard = document.getElementById('authCard');
     const dashboard = document.getElementById('dashboard');
     const userName = document.getElementById('userName');
@@ -286,12 +299,24 @@ function showDashboard(userData) {
 
     const recruiterJobSection = document.getElementById('recruiterJobSection');
 
+    // Check Premium Status
+    if (userData.isPremium) {
+        if (document.getElementById('premiumBadge')) document.getElementById('premiumBadge').style.display = 'inline-block';
+    } else {
+        if (document.getElementById('premiumBadge')) document.getElementById('premiumBadge').style.display = 'none';
+    }
+
     if (role === 'ADMIN') {
         roleTitle.textContent = "🎉 Welcome Admin!";
         roleDescription.textContent = "You have full access to view all recruiters and candidates in the system.";
         roleVisibleSection.style.display = 'block';
         recruiterJobSection.style.display = 'none';
-        fetchUsersByRole('ALL'); // Custom flag for admin
+        document.getElementById('navNotificationsBtn').style.display = 'flex';
+        // Explicitly show admin-only sections
+        const lockedContainer = document.getElementById('lockedAccountsContainer');
+        if (lockedContainer) lockedContainer.style.display = 'block';
+        updateNotificationCount(); // Load notification count
+        loadAdminDashboard(); // Load candidates, recruiters, and premium users
     } else if (role === 'RECRUITER') {
         roleTitle.textContent = "🎉 Welcome Recruiter!";
         roleDescription.textContent = "Manage your job openings and discover top talent.";
@@ -300,6 +325,10 @@ function showDashboard(userData) {
         document.getElementById('navProfileBtn').style.display = 'flex';
         document.getElementById('navApplicationsBtn').style.display = 'none';
         document.getElementById('navCandidatesBtn').style.display = 'flex';
+        document.getElementById('navNotificationsBtn').style.display = 'none';
+        // Explicitly hide admin-only sections
+        const lockedContainer = document.getElementById('lockedAccountsContainer');
+        if (lockedContainer) lockedContainer.style.display = 'none';
 
         fetchApplications();
         fetchJobs();
@@ -311,6 +340,10 @@ function showDashboard(userData) {
         document.getElementById('candidateJobSection').style.display = 'block';
         document.getElementById('navProfileBtn').style.display = 'flex';
         document.getElementById('navApplicationsBtn').style.display = 'flex';
+        document.getElementById('navNotificationsBtn').style.display = 'none';
+        // Explicitly hide admin-only sections
+        const lockedContainer = document.getElementById('lockedAccountsContainer');
+        if (lockedContainer) lockedContainer.style.display = 'none';
 
         fetchAvailableJobs();
         fetchMyApplications();
@@ -330,75 +363,102 @@ function showDashboard(userData) {
 // Fetch users based on role
 async function fetchUsersByRole(target, containerId = 'usersList') {
     const usersList = document.getElementById(containerId);
-    if (!usersList) return;
+    if (!usersList) {
+        console.error('Container not found:', containerId);
+        return;
+    }
 
     const isModalContainer = containerId === 'candidatesList';
     const loadingText = isModalContainer ? '<div style="text-align: center; padding: 100px; grid-column: 1 / -1;"><div class="loader-spinner" style="margin: 0 auto 20px;"></div><p style="color: var(--text-light); font-size: 18px;">Surfacing top talent...</p></div>' : '<p class="text-secondary" style="font-size: 14px;">Loading users...</p>';
 
     usersList.innerHTML = loadingText;
+    console.log('candidatesList element found:', usersList, 'containerId:', containerId);
 
     let endpoint = '/user/candidates';
     if (target === 'ALL') endpoint = '/user/all';
     else if (target === 'RECRUITER') endpoint = '/user/recruiters';
 
+    console.log('Fetching users from:', `${API_BASE_URL}${endpoint}`);
+
     try {
+        // Add timeout to prevent infinite loading
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             headers: {
                 'Authorization': `Bearer ${currentToken}`
-            }
+            },
+            signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
+
+        console.log('Response status:', response.status);
 
         if (response.ok) {
             const users = await response.json();
+            console.log('Users loaded:', users.length);
             if (users.length === 0) {
                 const emptyText = isModalContainer ? '<div style="text-align: center; color: var(--text-light); padding: 80px 40px; background: #fff; border-radius: 12px; border: 2px dashed #e2e8f0; grid-column: 1 / -1; width: 100%;"><span style="font-size: 48px; display: block; margin-bottom: 20px;">👥</span><h4 style="color: #1e293b; font-weight: 700;">No candidates yet</h4><p style="font-size: 14px; color: #64748b;">The talent pool is currently empty.</p></div>' : '<p class="text-secondary" style="font-size: 14px;">No users found.</p>';
                 usersList.innerHTML = emptyText;
                 return;
             }
 
-            usersList.innerHTML = users.map(user => {
-                if (isModalContainer) {
+
+            try {
+                usersList.innerHTML = users.map(user => {
+                    if (isModalContainer) {
+                        return `
+                            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);" class="app-card-hover">
+                                <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
+                                    <div style="width: 48px; height: 48px; border-radius: 12px; background: var(--primary-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px;">
+                                        ${getInitials(user.firstName, user.lastName)}
+                                    </div>
+                                    <div>
+                                        <h5 style="font-size: 16px; font-weight: 800; color: #0f172a; margin: 0;">${user.firstName} ${user.lastName}</h5>
+                                        <p style="font-size: 12px; color: #64748b; margin: 0;">${user.email}</p>
+                                    </div>
+                                </div>
+                                <div style="background: #f8fafc; border-radius: 10px; padding: 12px; margin-bottom: 16px;">
+                                    <div style="font-size: 12px; color: #64748b;">Specialization</div>
+                                    <div style="font-size: 13px; color: #1e293b; font-weight: 700;">${user.role}</div>
+                                </div>
+                                <button class="btn btn-primary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="width: 100%; border-radius: 8px;">View Full Profile</button>
+                            </div>
+                        `;
+                    }
+
                     return `
-                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);" class="app-card-hover">
-                            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
-                                <div style="width: 48px; height: 48px; border-radius: 12px; background: var(--primary-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px;">
-                                    ${getInitials(user.firstName, user.lastName)}
-                                </div>
-                                <div>
-                                    <h5 style="font-size: 16px; font-weight: 800; color: #0f172a; margin: 0;">${user.firstName} ${user.lastName}</h5>
-                                    <p style="font-size: 12px; color: #64748b; margin: 0;">${user.email}</p>
-                                </div>
+                        <div class="user-item">
+                            <div class="user-item-info">
+                                <h5>${user.firstName} ${user.lastName}</h5>
+                                <p>${user.email}</p>
                             </div>
-                            <div style="background: #f8fafc; border-radius: 10px; padding: 12px; margin-bottom: 16px;">
-                                <div style="font-size: 12px; color: #64748b;">Specialization</div>
-                                <div style="font-size: 13px; color: #1e293b; font-weight: 700;">${user.role}</div>
+                            <div class="user-item-actions">
+                            ${currentUser.role === 'ADMIN' ?
+                            `<button class="btn btn-secondary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="padding: 4px 12px; font-size: 12px;">View Profile</button>`
+                            : ''}
                             </div>
-                            <button class="btn btn-primary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="width: 100%; border-radius: 8px;">View Full Profile</button>
                         </div>
                     `;
-                }
-
-                return `
-                    <div class="user-item">
-                        <div class="user-item-info">
-                            <h5>${user.firstName} ${user.lastName}</h5>
-                            <p>${user.email}</p>
-                        </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <span class="badge">${user.role}</span>
-                            ${user.role === 'CANDIDATE' ?
-                        `<button class="btn btn-secondary btn-sm" onclick="viewCandidateProfile('${user.email}')" style="padding: 4px 12px; font-size: 12px;">View Profile</button>`
-                        : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                }).join('');
+                console.log('Successfully updated usersList.innerHTML with', users.length, 'users');
+            } catch (renderError) {
+                console.error('Error rendering users:', renderError);
+                usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Error displaying users. Check console for details.</p>';
+            }
         } else {
-            usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Failed to load users.</p>';
+            console.error('Failed to load users, status:', response.status);
+            usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Failed to load users. Please try again.</p>';
         }
     } catch (error) {
         console.error('Fetch users error:', error);
-        usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Connection error.</p>';
+        if (error.name === 'AbortError') {
+            usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Request timed out. Please check your connection and try again.</p>';
+        } else {
+            usersList.innerHTML = '<p class="text-error" style="font-size: 14px;">Connection error. Please try again.</p>';
+        }
     }
 }
 
@@ -426,17 +486,37 @@ async function fetchApplications() {
             const jobMap = {};
             allJobs.forEach(j => jobMap[j.id] = j.title);
 
-            listEl.innerHTML = apps.map(app => `
-                <div class="user-item">
-                    <div class="user-item-info">
-                        <h5><span style="color: var(--primary-color);">${app.candidateEmail}</span> applied for <strong>${jobMap[app.jobId] || 'Unknown Position'}</strong></h5>
-                        <p style="font-size: 12px; color: var(--text-light);">Applied on: ${new Date(app.appliedAt).toLocaleDateString()} at ${new Date(app.appliedAt).toLocaleTimeString()}</p>
+            // Group applications by Job ID (Normalized)
+            const groupedApps = {};
+            apps.forEach(app => {
+                const normJobId = normalizeId(app.jobId);
+                const normAppId = normalizeId(app);
+                app.id = normAppId; // Ensure app.id is clean
+                if (!groupedApps[normJobId]) {
+                    groupedApps[normJobId] = [];
+                }
+                groupedApps[normJobId].push(app);
+            });
+
+            listEl.innerHTML = Object.keys(groupedApps).map(jobId => {
+                const jobTitle = jobMap[jobId] || 'Unknown Position';
+                const applicants = groupedApps[jobId];
+                return `
+                    <div class="user-item" onclick="viewApplicants('${jobId}', '${jobTitle.replace(/'/g, "\\'")}')" style="cursor: pointer; transition: all 0.2s; border-left: 4px solid var(--primary-color);">
+                        <div class="user-item-info">
+                            <h5 style="font-size: 16px; font-weight: 700;">${jobTitle}</h5>
+                            <p style="font-size: 13px; color: var(--text-light);">${applicants.length} Applicant${applicants.length > 1 ? 's' : ''} Received</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span class="badge" style="background: var(--primary-light); color: var(--primary-color); font-weight: 700; padding: 6px 12px; border-radius: 20px;">Review List</span>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button class="btn btn-secondary btn-sm" onclick="viewApplicationResumeAsBlob('${app.id}')" style="padding: 4px 12px; font-size: 11px;">View Resume</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+
+            // Store grouped data globally for modal use
+            window.lastGroupedApps = groupedApps;
+
         }
     } catch (error) {
         console.error('Fetch applications error:', error);
@@ -482,12 +562,24 @@ function handleLogout() {
     dashboard.classList.remove('active');
     authCard.style.display = 'block';
 
+    // Hide all modals
+    if (typeof closeMyApplicationsModal === 'function') closeMyApplicationsModal();
+    if (typeof closeCandidatesModal === 'function') closeCandidatesModal();
+    if (typeof closeCandidateModal === 'function') closeCandidateModal();
+    if (typeof closeJobModal === 'function') closeJobModal();
+
+
     // Hide role specific sections
     document.getElementById('recruiterJobSection').style.display = 'none';
     document.getElementById('candidateJobSection').style.display = 'none';
     document.getElementById('roleVisibleSection').style.display = 'none';
     document.getElementById('navApplicationsBtn').style.display = 'none';
     document.getElementById('navProfileBtn').style.display = 'none';
+    document.getElementById('navCandidatesBtn').style.display = 'none';
+
+    // Reset view state
+    showDashboardView();
+
 
     // Reset forms
     document.getElementById('loginForm').reset();
@@ -726,9 +818,14 @@ async function viewResumeAsBlob(safeUrl) {
         const response = await fetch(`${API_BASE_URL}/auth/profile/resume/${safeUrl}?view=true`, {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
-        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        if (!response.ok) {
+            const errorMsg = await response.text();
+            throw new Error(`${errorMsg} (Status: ${response.status})`);
+        }
         const blob = await response.blob();
         console.log('Blob received, size:', blob.size, 'type:', blob.type);
+        if (blob.size === 0) throw new Error('Document is empty in database.');
+
         const blobUrl = URL.createObjectURL(blob);
         const newWindow = window.open(blobUrl, '_blank');
         if (!newWindow) {
@@ -738,7 +835,7 @@ async function viewResumeAsBlob(safeUrl) {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (error) {
         console.error('Error viewing resume:', error);
-        alert('Could not open resume for viewing: ' + error.message);
+        alert('Could not open resume: ' + error.message);
     }
 }
 
@@ -796,23 +893,6 @@ async function handleDeleteResume() {
 
 async function viewCandidateProfile(email) {
     try {
-        // Fetch specific user details
-        // We can use the internal endpoint proxied via User Service or just assume we have access if Recruiter
-        // Since we don't have a direct "get user by email" public endpoint for recruiters, we might need to rely on the list data
-        // BUT list data might be shallow if we implemented pagination (not yet). 
-        // Let's us the list fetch again or filter from memory? 
-        // Better: user-service 'internal/user/{email}' is for microservices.
-        // Let's add a public (but secured) endpoint in UserController to get candidate details: /api/user/candidate/{email}
-        // OR filtering the full list client side is easier given current size.
-
-        // Let's just re-fetch the candidate list or filter if we can.
-        // Since we don't have a "get single user" endpoint exposed to frontend, 
-        // I will implement a quick one-off fetch to the list endpoint and filter (inefficient but works for now)
-        // OR better: Just use the list API.
-
-        // Wait, I can just use the `fetchUsersByRole` logic but for one? No.
-        // Let's USE the /user/candidates endpoint and find the user.
-
         const response = await fetch(`${API_BASE_URL}/user/candidates`, {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
@@ -822,24 +902,16 @@ async function viewCandidateProfile(email) {
             const candidate = candidates.find(u => u.email === email);
 
             if (candidate) {
-                document.getElementById('viewCandidateName').textContent = `${candidate.firstName} ${candidate.lastName}`;
-                document.getElementById('viewCandidateEmail').textContent = candidate.email;
-                document.getElementById('viewCandidateCompany').textContent = candidate.currentCompany || 'N/A';
-                document.getElementById('viewCandidateExperience').textContent = candidate.experienceYears || '0';
-                document.getElementById('viewCandidateEducation').textContent = candidate.education || 'N/A';
-                document.getElementById('viewCandidateSkills').textContent = candidate.skills || 'N/A';
-                document.getElementById('viewCandidatePastExp').textContent = candidate.pastExperience || 'No details provided.';
+                populateCandidateModalFields(candidate);
 
-                // Restrict resume section for Recruiters
+                // Generic profile view (not from assessment) - hide deeper documents
                 const resumeSection = document.getElementById('viewCandidateResumeSection');
                 if (candidate.resumeUrl) {
                     resumeSection.style.display = 'block';
-                    resumeSection.style.background = '#fafafa';
-                    resumeSection.style.color = 'var(--text-light)';
-                    resumeSection.style.border = '1px dashed var(--border-color)';
                     resumeSection.innerHTML = `
-                        <div style="display: flex; align-items: center; justify-content: center; padding: 10px; font-style: italic;">
-                            <span>Resume details are hidden from recruiters in this view.</span>
+                        <div style="display: flex; align-items: center; justify-content: center; padding: 20px; font-style: italic; color: #94a3b8; background: #f8fafc; border-radius: 12px; border: 1px dashed #e2e8f0;">
+                            <span>⚠️ Detailed resume visibility is restricted in the general talent pool view. 
+                            Please access via the specific job application received.</span>
                         </div>
                     `;
                 } else {
@@ -849,12 +921,22 @@ async function viewCandidateProfile(email) {
                 document.getElementById('candidateDetailsModal').style.display = 'flex';
             }
         }
-
     } catch (error) {
         console.error('Error fetching candidate details:', error);
         alert('Could not load candidate details.');
     }
 }
+
+function populateCandidateModalFields(candidate) {
+    document.getElementById('viewCandidateName').textContent = `${candidate.firstName} ${candidate.lastName}`;
+    document.getElementById('viewCandidateEmail').textContent = candidate.email;
+    document.getElementById('viewCandidateCompany').textContent = candidate.currentCompany || 'N/A';
+    document.getElementById('viewCandidateExperience').textContent = candidate.experienceYears || '0';
+    document.getElementById('viewCandidateEducation').textContent = candidate.education || 'N/A';
+    document.getElementById('viewCandidateSkills').textContent = candidate.skills || 'N/A';
+    document.getElementById('viewCandidatePastExp').textContent = candidate.pastExperience || 'No details provided.';
+}
+
 
 function closeCandidateModal() {
     document.getElementById('candidateDetailsModal').style.display = 'none';
@@ -928,11 +1010,15 @@ async function fetchJobs() {
 
         if (response.ok) {
             const jobs = await response.json();
-            if (jobs.length === 0) {
-                jobsList.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No jobs posted yet.</p>';
+
+            // Filter: Show only OPEN jobs in the main list
+            const activeJobs = jobs.filter(j => j.isOpen !== false);
+
+            if (activeJobs.length === 0) {
+                jobsList.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 40px;">No active jobs. Check History for closed posts.</p>';
                 return;
             }
-            jobsList.innerHTML = jobs.map(renderJobItem).join('');
+            jobsList.innerHTML = activeJobs.map(renderJobItem).join('');
         }
     } catch (error) {
         console.error('Fetch jobs error:', error);
@@ -1105,6 +1191,7 @@ async function fetchMyApplications() {
 function renderJobItem(job) {
     const isCandidate = currentUser && currentUser.role === 'CANDIDATE';
     const jobId = normalizeId(job);
+    const isOpen = job.isOpen !== false; // Default to true if undefined
     return `
         <div class="user-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
@@ -1116,12 +1203,46 @@ function renderJobItem(job) {
                 <div style="display: flex; gap: 16px;">
                     <span style="display: flex; align-items: center; gap: 4px;">💼 ${job.requirements}</span>
                     ${job.salary ? `<span style="display: flex; align-items: center; gap: 4px;">💰 $${job.salary.toLocaleString()}</span>` : ''}
+                    ${!isOpen ? `<span class="badge" style="background: #fee2e2; color: #ef4444;">Closed</span>` : ''}
                 </div>
-                ${isCandidate ? `<button class="btn btn-primary btn-sm" style="width: auto; padding: 4px 12px;" onclick="viewJobDetails('${jobId}')">View Details & Apply</button>` : ''}
+                ${isCandidate ?
+            `<button class="btn btn-primary btn-sm" style="width: auto; padding: 4px 12px;" onclick="viewJobDetails('${jobId}')">View Details & Apply</button>` :
+            `<div style="display: flex; gap: 8px; align-items: center;">
+                        <label class="switch" style="position: relative; display: inline-block; width: 34px; height: 20px;">
+                            <input type="checkbox" ${isOpen ? 'checked' : ''} onchange="toggleJobStatus('${jobId}', this.checked)" style="opacity: 0; width: 0; height: 0;">
+                            <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+                        </label>
+                        <span style="font-size: 12px; font-weight: 600; color: ${isOpen ? 'var(--success-color)' : 'var(--text-light)'}">${isOpen ? 'Active' : 'Closed'}</span>
+                    </div>`
+        }
             </div>
         </div>
     `;
 }
+
+async function toggleJobStatus(jobId, isOpen) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/${jobId}/status?isOpen=${isOpen}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            // Refresh ALL lists to update UI state properly everywhere
+            await Promise.all([
+                fetchJobs(),
+                fetchJobHistory()
+            ]);
+        } else {
+            const error = await response.text();
+            alert('Failed to update job status: ' + error);
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+        alert('Connection error while updating job status.');
+    }
+}
+
 
 let selectedJobId = null;
 
@@ -1264,3 +1385,305 @@ function showCandidatesModal() {
 function closeCandidatesModal() {
     document.getElementById('candidatesModal').style.display = 'none';
 }
+
+async function viewApplicants(jobId, jobTitle) {
+    const modal = document.getElementById('jobApplicantsModal');
+    const titleEl = document.getElementById('applicantModalJobTitle');
+    const listEl = document.getElementById('jobApplicantsList');
+
+    titleEl.textContent = `Applicants: ${jobTitle}`;
+    modal.style.display = 'flex';
+    listEl.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;"><div class="loader-spinner"></div></div>';
+
+    const apps = window.lastGroupedApps[jobId] || [];
+
+    if (apps.length === 0) {
+        listEl.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-light);">No data available.</p>';
+        return;
+    }
+
+    listEl.innerHTML = apps.map(app => `
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
+            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 20px;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: #667eea; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px;">
+                    ${app.candidateEmail.charAt(0).toUpperCase()}
+                </div>
+                <div style="flex: 1;">
+                    <h5 style="font-size: 15px; font-weight: 800; color: #0f172a; margin: 0; word-break: break-all;">${app.candidateEmail}</h5>
+                    <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 12px; color: #64748b; font-weight: 600;">Status:</span>
+                        <select onchange="handleUpdateApplicationStatus('${app.id}', this.value)" 
+                                style="font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; border: 1px solid #e2e8f0; background: #f8fafc; color: var(--primary-color); cursor: pointer; outline: none; transition: all 0.2s;">
+                            <option value="SUBMITTED" ${(app.status || 'SUBMITTED').toUpperCase() === 'SUBMITTED' ? 'selected' : ''}>SUBMITTED</option>
+                            <option value="IN_REVIEW" ${(app.status || '').toUpperCase() === 'IN_REVIEW' ? 'selected' : ''}>IN REVIEW</option>
+                            <option value="SHORTLISTED" ${(app.status || '').toUpperCase() === 'SHORTLISTED' ? 'selected' : ''}>SHORTLISTED</option>
+                            <option value="REJECTED" ${(app.status || '').toUpperCase() === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
+                            <option value="HIRED" ${(app.status || '').toUpperCase() === 'HIRED' ? 'selected' : ''}>HIRED</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div style="background: #f8fafc; border-radius: 10px; padding: 12px; margin-bottom: 20px; font-size: 12px; color: #64748b;">
+                Applied: ${new Date(app.appliedAt).toLocaleDateString()} at ${new Date(app.appliedAt).toLocaleTimeString()}
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-primary" onclick="viewCandidateAssessment('${app.candidateEmail}', '${normalizeId(app)}')" style="flex: 1; font-size: 13px; font-weight: 700; padding: 10px;">View Full Application</button>
+            </div>
+
+        </div>
+    `).join('');
+}
+
+function closeJobApplicantsModal() {
+    document.getElementById('jobApplicantsModal').style.display = 'none';
+}
+
+async function handleUpdateApplicationStatus(applicationId, newStatus) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/application/${applicationId}/status?status=${newStatus}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            console.log(`DEBUG: Application ${applicationId} status updated to ${newStatus}`);
+            // Update local snapshot so UI reflects change if modal stays open or re-opens
+            if (window.lastGroupedApps) {
+                for (const jobId in window.lastGroupedApps) {
+                    const app = window.lastGroupedApps[jobId].find(a => a.id === applicationId);
+                    if (app) {
+                        app.status = newStatus;
+                        break;
+                    }
+                }
+            }
+        } else {
+            const error = await response.text();
+            alert('Failed to update status: ' + error);
+        }
+    } catch (error) {
+        console.error('Update status error:', error);
+        alert('An error occurred while updating status.');
+    }
+}
+
+async function viewCandidateAssessment(email, applicationId) {
+    try {
+        // 1. Fetch Candidate Data
+        const responseCand = await fetch(`${API_BASE_URL}/user/candidates`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!responseCand.ok) throw new Error("Failed to load candidates");
+        const candidates = await responseCand.json();
+        const candidate = candidates.find(u => u.email && u.email.toLowerCase().trim() === email.toLowerCase().trim());
+        if (!candidate) throw new Error("Candidate profile data could not be resolved.");
+
+        // 2. Populate standard fields
+        populateCandidateModalFields(candidate);
+
+        // 3. Re-inject the Resume Action Bar Template (Crucial for visibility)
+        const resumeSection = document.getElementById('viewCandidateResumeSection');
+        resumeSection.style.display = 'block';
+        resumeSection.innerHTML = `
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 40px; text-align: center;">
+                <div style="width: 64px; height: 64px; background: rgba(99, 102, 241, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; color: #6366f1;">
+                    <svg style="width: 32px; height: 32px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                    </svg>
+                </div>
+                <h4 style="font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 8px;">Professional Resume attached</h4>
+                <p style="font-size: 14px; color: #64748b; margin-bottom: 32px;">The candidate has provided a professional PDF document for review.</p>
+                
+                <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                    <button id="viewResumeBtn" class="btn btn-primary" style="width: auto; padding: 10px 24px; font-size: 13px;">
+                        <svg style="width:16px; margin-right:6px; display: inline-block; vertical-align: middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span style="vertical-align: middle;">View Resume</span>
+                    </button>
+                    <button id="downloadResumeBtn" class="btn btn-secondary" style="width: auto; padding: 10px 24px; font-size: 13px;">
+                        <svg style="width:16px; margin-right:6px; display: inline-block; vertical-align: middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v4M7 10l5 5 5-5M12 15V3" />
+                        </svg>
+                        <span style="vertical-align: middle;">Download PDF</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+
+        // 4. Configure elements
+        const viewBtn = document.getElementById('viewResumeBtn');
+        const downloadBtn = document.getElementById('downloadResumeBtn');
+        const summaryField = document.getElementById('applicationSummary');
+        const statusSelect = document.getElementById('modalStatusSelect');
+
+        summaryField.value = "";
+
+        // 5. Find current application
+        let currentApp = null;
+        if (window.lastGroupedApps) {
+            for (const jobId in window.lastGroupedApps) {
+                currentApp = window.lastGroupedApps[jobId].find(a => a.id === applicationId);
+                if (currentApp) break;
+            }
+        }
+
+        if (currentApp) {
+            statusSelect.value = (currentApp.status || 'SUBMITTED').toUpperCase();
+        }
+
+        // 6. Wire up actions
+        viewBtn.onclick = () => openApplicationResume(applicationId);
+        downloadBtn.onclick = () => downloadApplicationResume(applicationId);
+
+
+        statusSelect.onchange = async () => {
+            statusSelect.style.opacity = '0.5';
+            await handleUpdateApplicationStatus(applicationId, statusSelect.value);
+            statusSelect.style.opacity = '1';
+        };
+
+
+
+        document.getElementById('candidateDetailsModal').style.display = 'flex';
+
+    } catch (error) {
+        console.error('Error in assessment view:', error);
+        alert('Could not initialize evaluation workspace: ' + error.message);
+    }
+}
+
+async function openApplicationResume(applicationId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/application/resume/${applicationId}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            console.log("DEBUG: Received arrayBuffer, size:", arrayBuffer.byteLength);
+
+            if (arrayBuffer.byteLength === 0) {
+                alert('The resume file is empty or corrupted in the database.');
+                return;
+            }
+
+            const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+            const blobUrl = URL.createObjectURL(pdfBlob);
+            const newWindow = window.open(blobUrl, '_blank');
+            if (!newWindow) {
+                alert('Popup blocked! Please allow popups to view the resume.');
+            }
+        } else {
+            const errorMsg = await response.text();
+            console.error("DEBUG: Resume fetch failed:", response.status, errorMsg);
+            alert(`Document Error: ${errorMsg} (Status: ${response.status})`);
+        }
+
+    } catch (error) {
+        console.error('Open resume error:', error);
+        alert('Internal error processing binary document.');
+    }
+}
+
+
+
+
+async function downloadApplicationResume(applicationId) {
+    try {
+        console.log("DEBUG: Requesting resume binary for download...");
+        const response = await fetch(`${API_BASE_URL}/job/application/resume/${applicationId}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            console.log("DEBUG: Received arrayBuffer for download, size:", arrayBuffer.byteLength);
+
+            if (arrayBuffer.byteLength === 0) {
+                alert('The document data is empty in the database. Download aborted.');
+                return;
+            }
+
+            const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(pdfBlob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `resume_${applicationId.substring(0, 8)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 1000);
+        } else {
+            const errorMsg = await response.text();
+            console.error("DEBUG: Download fetch failed:", response.status, errorMsg);
+            alert(`Download failed: resume data not found (${response.status}).`);
+        }
+    } catch (error) {
+        console.error('Download error:', error);
+        alert('Internal error processing document download.');
+    }
+}
+
+// --- 11. Job History Functions ---
+function showJobHistoryModal() {
+    document.getElementById('jobHistoryModal').style.display = 'flex';
+    fetchJobHistory();
+}
+
+function closeJobHistoryModal() {
+    document.getElementById('jobHistoryModal').style.display = 'none';
+}
+
+async function fetchJobHistory() {
+    const listEl = document.getElementById('jobHistoryList');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loader-spinner"></div><p style="color:var(--text-light); margin-top:10px;">Retrieving history...</p></div>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/job/my-jobs`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (response.ok) {
+            const allJobs = await response.json();
+            const closedJobs = allJobs.filter(job => job.isOpen === false);
+
+            if (closedJobs.length === 0) {
+                listEl.innerHTML = `
+                    <div style="text-align: center; color: var(--text-light); padding: 60px 40px; background: #f8fafc; border-radius: 16px; border: 2px dashed #e2e8f0;">
+                        <span style="font-size: 40px; display: block; margin-bottom: 16px;">📂</span>
+                        <p style="font-size: 16px; font-weight: 600; color: #1e293b;">Clean History</p>
+                        <p style="font-size: 14px;">No closed or archived jobs found.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // We reuse renderJobItem but since it's the history list, we might want to ensure they look "archived"
+            listEl.innerHTML = closedJobs.map(job => renderJobItem(job)).join('');
+        } else {
+            listEl.innerHTML = '<p class="text-error" style="text-align: center;">Failed to load history.</p>';
+        }
+    } catch (error) {
+        console.error('Fetch history error:', error);
+        listEl.innerHTML = '<p class="text-error" style="text-align: center;">Connection error.</p>';
+    }
+}
+
+
+
+
+

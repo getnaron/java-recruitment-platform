@@ -47,4 +47,7 @@ public class User {
     @com.fasterxml.jackson.annotation.JsonIgnore
     private byte[] resumeData;
     private String resumeContentType;
+
+    private boolean isPremium;
+    private boolean isLocked;
 }

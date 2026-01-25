@@ -76,6 +76,10 @@ public class JobController {
 
             List<Job> filteredJobs = allJobs.stream()
                     .filter(job -> {
+                        // Exclude closed or invalid jobs
+                        if (job.getIsOpen() != null && !job.getIsOpen()) {
+                            return false;
+                        }
                         String id = job.getId() != null ? job.getId().trim() : "";
                         boolean alreadyApplied = appliedJobIds.contains(id);
                         return !alreadyApplied;
@@ -103,7 +107,8 @@ public class JobController {
             @RequestParam(value = "resumeName", required = false) String resumeName) {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
+        String email = auth.getName().toLowerCase().trim();
+        System.out.println("DEBUG: applyToJob for Candidate: " + email);
 
         if (jobApplicationRepository.existsByJobIdAndCandidateEmail(jobId, email)) {
             return ResponseEntity.badRequest().body("You have already applied for this job.");
@@ -127,24 +132,38 @@ public class JobController {
             application.setResumeUrl(resumeName);
             // Fetch resume data from auth-service if candidate used their profile resume
             try {
+                System.out.println("DEBUG: Attempting to fetch profile resume from auth-service for " + email);
                 ResponseEntity<byte[]> resumeResponse = authServiceClient.getInternalResume(email);
-                if (resumeResponse.getStatusCode().is2xxSuccessful()
-                        && resumeResponse.getHeaders().getContentType() != null) {
-                    application.setResumeData(resumeResponse.getBody());
-                    application.setResumeContentType(resumeResponse.getHeaders().getContentType().toString());
-                } else if (resumeResponse.getStatusCode().is2xxSuccessful()) {
-                    application.setResumeData(resumeResponse.getBody());
-                    application.setResumeContentType("application/pdf"); // Default
+                if (resumeResponse.getStatusCode().is2xxSuccessful() && resumeResponse.getBody() != null
+                        && resumeResponse.getBody().length > 0) {
+                    byte[] body = resumeResponse.getBody();
+                    application.setResumeData(body);
+                    application.setResumeContentType("application/pdf");
+                    System.out.println("DEBUG: Successfully fetched resume data, size: " + body.length + " bytes");
+                } else {
+                    System.out.println("DEBUG: Auth-service returned status: " + resumeResponse.getStatusCode()
+                            + " or empty body.");
+                    return ResponseEntity.badRequest()
+                            .body("Failed to retrieve your profile resume. Please upload it again.");
                 }
             } catch (Exception e) {
-                System.out.println("DEBUG: Failed to fetch profile resume for application: " + e.getMessage());
-                // Fallback: we still save the application with just the name
+                System.out.println("DEBUG: Error fetching resume from auth-service: " + e.getMessage());
+                e.printStackTrace();
+                return ResponseEntity.status(500)
+                        .body("Error communicating with authentication service: " + e.getMessage());
             }
         } else {
             return ResponseEntity.badRequest().body("Resume is required for application.");
         }
 
-        jobApplicationRepository.save(application);
+        if (application.getResumeData() != null) {
+            System.out.println("DEBUG: Binary data ready for persistence. Size: " + application.getResumeData().length);
+        } else {
+            System.out.println("DEBUG: WARNING - Binary data is NULL before save!");
+        }
+
+        JobApplication saved = jobApplicationRepository.save(application);
+        System.out.println("DEBUG: Application saved to MongoDB. ID: " + saved.getId() + " for candidate: " + email);
         return ResponseEntity.ok("Application submitted successfully!");
     }
 
@@ -175,22 +194,108 @@ public class JobController {
 
     @GetMapping("/application/resume/{applicationId}")
     public ResponseEntity<byte[]> getApplicationResume(@PathVariable String applicationId) {
+        System.out.println("DEBUG: getApplicationResume Request for ID: " + applicationId);
+
+        JobApplication application = jobApplicationRepository.findById(applicationId)
+                .orElse(null);
+
+        if (application == null) {
+            System.out.println("DEBUG: Application NOT FOUND in database for ID: " + applicationId);
+            return ResponseEntity.status(404)
+                    .body("Error: Application not found in database. Please verify the ID.".getBytes());
+        }
+
+        // 1. Try direct binary data from application record
+        if (application.getResumeData() != null && application.getResumeData().length > 0) {
+            System.out.println("DEBUG: Found direct binary data in Application record. Size: "
+                    + application.getResumeData().length);
+            return createResumeResponse(application.getResumeData(), application.getResumeContentType(),
+                    application.getResumeUrl());
+        }
+
+        // 2. Fallback: Try fetching from auth-service profile
+        String email = application.getCandidateEmail();
+        System.out.println("DEBUG: Direct data NULL. Falling back to Profile Resume for: " + email);
+
+        if (email == null || email.isEmpty()) {
+            System.out.println("DEBUG: Candidate email is NULL/EMPTY in application record.");
+            return ResponseEntity.status(404)
+                    .body("Error: Candidate email is missing from the application. Cannot locate profile document."
+                            .getBytes());
+        }
+
+        try {
+            // Normalize email for the fetch
+            String normalizedEmail = email.toLowerCase().trim();
+            System.out.println("DEBUG: Calling Auth-Service for: " + normalizedEmail);
+
+            ResponseEntity<byte[]> fallback = authServiceClient.getInternalResume(normalizedEmail);
+
+            if (fallback.getStatusCode().is2xxSuccessful() && fallback.getBody() != null
+                    && fallback.getBody().length > 0) {
+                byte[] data = fallback.getBody();
+                System.out.println("DEBUG: Successfully retrieved Profile Resume. Size: " + data.length);
+                return createResumeResponse(data, "application/pdf", application.getResumeUrl());
+            } else {
+                String reason = (fallback.getBody() == null) ? "Body is null" : "Body is empty";
+                System.out
+                        .println("DEBUG: Auth-Service returned status: " + fallback.getStatusCode() + " but " + reason);
+                return ResponseEntity.status(404)
+                        .body(("Error: Candidate profile resume is missing (Phase 2: " + reason + ")").getBytes());
+            }
+        } catch (Exception e) {
+            System.out.println("DEBUG: Auth-Service communication error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                    .body(("Error: Failed to fetch resume from Auth-Service. " + e.getMessage()).getBytes());
+        }
+    }
+
+    private ResponseEntity<byte[]> createResumeResponse(byte[] data, String contentType, String filename) {
+        if (contentType == null || contentType.isEmpty())
+            contentType = "application/pdf";
+        if (filename == null || filename.isEmpty())
+            filename = "resume.pdf";
+
+        System.out.println("DEBUG: Creating resume response. Type: " + contentType + ", Filename: " + filename);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .body(data);
+    }
+
+    @PutMapping("/{jobId}/status")
+    public ResponseEntity<?> updateJobStatus(
+            @PathVariable String jobId,
+            @RequestParam("isOpen") boolean isOpen) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String recruiterEmail = auth.getName();
+
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        // Security check: Only the job owner can change status
+        if (!job.getRecruiterEmail().equals(recruiterEmail)) {
+            return ResponseEntity.status(403).body("You are not authorized to modify this job.");
+        }
+
+        job.setIsOpen(isOpen);
+        jobRepository.save(job);
+        return ResponseEntity.ok("Job status updated successfully!");
+    }
+
+    @PutMapping("/application/{applicationId}/status")
+    public ResponseEntity<?> updateApplicationStatus(
+            @PathVariable String applicationId,
+            @RequestParam("status") String status) {
+
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new RuntimeException("Application not found"));
 
-        // Security: Check if recruiter owns the job (optional but good)
-        // For MVP, just return the data if it exists
-        if (application.getResumeData() != null) {
-            String contentType = application.getResumeContentType() != null ? application.getResumeContentType()
-                    : "application/pdf";
-            String filename = application.getResumeUrl() != null ? application.getResumeUrl() : "resume.pdf";
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename=\"" + filename + "\"")
-                    .body(application.getResumeData());
-        }
-        return ResponseEntity.notFound().build();
+        application.setStatus(status);
+        jobApplicationRepository.save(application);
+        return ResponseEntity.ok("Status updated successfully!");
     }
 }

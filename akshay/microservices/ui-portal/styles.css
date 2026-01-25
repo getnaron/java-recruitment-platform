@@ -770,8 +770,8 @@ select::placeholder {
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    z-index: 9999 !important;
-    /* Top most level */
+    z-index: 1000 !important;
+    /* Layered workspace level */
     overflow-y: auto;
 }
 

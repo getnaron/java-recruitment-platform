@@ -37,7 +37,7 @@ public class AuthService {
         }
 
         User user = new User();
-        user.setEmail(request.getEmail());
+        user.setEmail(request.getEmail().toLowerCase().trim());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
@@ -62,18 +62,27 @@ public class AuthService {
         response.setResumeUrl(user.getResumeUrl());
         response.setCountryCode(user.getCountryCode());
         response.setMobileNumber(user.getMobileNumber());
+        response.setPremium(user.isPremium());
 
         return response;
     }
 
     public AuthResponse login(LoginRequest request) {
+        // 1. Fetch user first to check lock status
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail().toLowerCase().trim())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // 2. Check if account is locked
+        if (user.isLocked()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN, "Account is locked. Please contact admin.");
+        }
+
+        // 3. Authenticate
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
 
@@ -87,13 +96,16 @@ public class AuthService {
         response.setResumeUrl(user.getResumeUrl());
         response.setCountryCode(user.getCountryCode());
         response.setMobileNumber(user.getMobileNumber());
+        response.setPremium(user.isPremium());
 
         return response;
     }
 
     public User getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (email == null)
+            return null;
+        return userRepository.findByEmailIgnoreCase(email.toLowerCase().trim())
+                .orElse(null);
     }
 
     public List<User> getUsersByRole(String role) {
@@ -142,5 +154,32 @@ public class AuthService {
         user.setResumeData(null);
         user.setResumeContentType(null);
         return userRepository.save(user);
+    }
+
+    public User upgradeToPremium(String email) {
+        User user = getUserByEmail(email);
+        if (user != null) {
+            user.setPremium(true);
+            return userRepository.save(user);
+        }
+        return null;
+    }
+
+    public User toggleUserLock(String email) {
+        User user = getUserByEmail(email);
+        if (user != null) {
+            user.setLocked(!user.isLocked());
+            return userRepository.save(user);
+        }
+        return null;
+    }
+
+    public User setUserPremiumStatus(String email, boolean isPremium) {
+        User user = getUserByEmail(email);
+        if (user != null) {
+            user.setPremium(isPremium);
+            return userRepository.save(user);
+        }
+        return null;
     }
 }

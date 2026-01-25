@@ -26,4 +26,6 @@ public class User {
     private String skills;
     private String countryCode;
     private String mobileNumber;
+
+    private boolean isPremium;
 }

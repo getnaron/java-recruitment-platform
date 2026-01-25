@@ -32,6 +32,8 @@ public class AuthController {
         try {
             AuthResponse response = authService.login(request);
             return ResponseEntity.ok(response);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(new MessageResponse(e.getReason()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new MessageResponse("Invalid email or password"));

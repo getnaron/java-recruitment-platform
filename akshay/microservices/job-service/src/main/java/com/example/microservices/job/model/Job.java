@@ -25,4 +25,6 @@ public class Job {
 
     @CreatedDate
     private LocalDateTime createdAt;
+
+    private Boolean isOpen = true;
 }

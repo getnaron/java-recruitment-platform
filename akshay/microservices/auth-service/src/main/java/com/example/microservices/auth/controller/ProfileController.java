@@ -21,6 +21,17 @@ public class ProfileController {
     @Autowired
     private AuthService authService;
 
+    @GetMapping
+    public ResponseEntity<?> getProfile() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User user = authService.getUserByEmail(email);
+        if (user != null) {
+            return ResponseEntity.ok(user);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @PutMapping
     public ResponseEntity<?> updateProfile(@RequestBody User userUpdates) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -104,7 +115,7 @@ public class ProfileController {
     }
 
     // Internal endpoint for other microservices
-    @GetMapping("/internal/resume/{email}")
+    @GetMapping("/internal/resume/{email:.+}")
     public ResponseEntity<byte[]> getInternalResume(@PathVariable String email) {
         User user = authService.getUserByEmail(email);
         if (user != null && user.getResumeData() != null) {
@@ -114,5 +125,85 @@ public class ProfileController {
                     .body(user.getResumeData());
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @PostMapping("/premium")
+    public ResponseEntity<?> upgradeToPremium() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User updatedUser = authService.upgradeToPremium(email);
+        if (updatedUser != null) {
+            return ResponseEntity.ok(updatedUser);
+        }
+        return ResponseEntity.badRequest().body("Failed to upgrade user.");
+    }
+
+    @PostMapping("/premium/{email}")
+    public ResponseEntity<?> upgradeToPremiumByEmail(@PathVariable String email) {
+        User updatedUser = authService.upgradeToPremium(email);
+        if (updatedUser != null) {
+            return ResponseEntity.ok(updatedUser);
+        }
+        return ResponseEntity.badRequest().body("Failed to upgrade user.");
+    }
+
+    @Autowired
+    private com.example.microservices.auth.repository.PremiumRequestRepository premiumRequestRepository;
+
+    @PostMapping("/premium-request")
+    public ResponseEntity<?> requestPremium() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User user = authService.getUserByEmail(email);
+
+        if (user == null) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        // Check if already premium
+        if (user.isPremium()) {
+            return ResponseEntity.badRequest().body("Already a premium user");
+        }
+
+        // Check if there's already a pending request
+        java.util.Optional<com.example.microservices.auth.model.PremiumRequest> existingRequest = premiumRequestRepository
+                .findByUserIdAndStatus(user.getId(), "PENDING");
+
+        if (existingRequest.isPresent()) {
+            return ResponseEntity.badRequest().body("You already have a pending premium request");
+        }
+
+        // Create new premium request
+        com.example.microservices.auth.model.PremiumRequest request = new com.example.microservices.auth.model.PremiumRequest();
+        request.setUserId(user.getId());
+        request.setUserEmail(user.getEmail());
+        request.setUserName(user.getFirstName() + " " + user.getLastName());
+        request.setStatus("PENDING");
+        request.setRequestedAt(java.time.LocalDateTime.now());
+
+        premiumRequestRepository.save(request);
+
+        return ResponseEntity.ok(request);
+    }
+
+    @GetMapping("/premium-request-status")
+    public ResponseEntity<?> checkPremiumRequestStatus() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User user = authService.getUserByEmail(email);
+
+        if (user == null) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        // Check if there's a pending request
+        java.util.Optional<com.example.microservices.auth.model.PremiumRequest> pendingRequest = premiumRequestRepository
+                .findByUserIdAndStatus(user.getId(), "PENDING");
+
+        java.util.Map<String, Boolean> response = new java.util.HashMap<>();
+        response.put("hasPendingRequest", pendingRequest.isPresent());
+        response.put("isPremium", user.isPremium());
+
+        return ResponseEntity.ok(response);
     }
 }
