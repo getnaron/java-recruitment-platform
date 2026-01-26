@@ -1521,9 +1521,7 @@ async function viewCandidateAssessment(email, applicationId) {
         const viewBtn = document.getElementById('viewResumeBtn');
         const downloadBtn = document.getElementById('downloadResumeBtn');
         const summaryField = document.getElementById('applicationSummary');
-        const statusSelect = document.getElementById('modalStatusSelect');
-
-        summaryField.value = "";
+        const statusSelect = document.getElementById('applicationStatus');
 
         // 5. Find current application
         let currentApp = null;
@@ -1536,7 +1534,38 @@ async function viewCandidateAssessment(email, applicationId) {
 
         if (currentApp) {
             statusSelect.value = (currentApp.status || 'SUBMITTED').toUpperCase();
+            // Populate AI summary if available
+            summaryField.value = currentApp.aiSummary || 'AI summary not available for this application.';
+
+            // Populate AI score if available
+            const scoreDisplay = document.getElementById('aiScoreDisplay');
+
+            if (currentApp.aiScore !== null && currentApp.aiScore !== undefined) {
+                scoreDisplay.textContent = currentApp.aiScore + '%';
+                // Color code based on score
+                if (currentApp.aiScore >= 75) {
+                    scoreDisplay.style.color = '#16a34a'; // Green
+                } else if (currentApp.aiScore >= 50) {
+                    scoreDisplay.style.color = '#f59e0b'; // Orange
+                } else {
+                    scoreDisplay.style.color = '#dc2626'; // Red
+                }
+            } else {
+                scoreDisplay.textContent = '--';
+                scoreDisplay.style.color = '#94a3b8';
+            }
+
+            // Auto-save status on change
+            statusSelect.onchange = async function () {
+                const newStatus = this.value;
+                await handleUpdateApplicationStatus(currentApp.id, newStatus);
+                // Optional: Show a small visual indicator or toast here if needed
+            };
+        } else {
+            summaryField.value = '';
+            document.getElementById('aiScoreDisplay').textContent = '--';
         }
+
 
         // 6. Wire up actions
         viewBtn.onclick = () => openApplicationResume(applicationId);

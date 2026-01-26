@@ -21,6 +21,9 @@ public class JobApplication {
     private String resumeUrl;
     private byte[] resumeData;
     private String resumeContentType;
+    private String aiSummary; // AI-generated resume summary
+    // AI-generated match score (0-100)
+    private Integer aiScore;
     private String status; // e.g., "APPLIED", "REVIEWED", "REJECTED", "ACCEPTED"
 
     @CreatedDate

@@ -31,6 +31,9 @@ public class JobController {
     @Autowired
     private AuthServiceClient authServiceClient;
 
+    @Autowired
+    private com.example.microservices.job.service.AzureAIService azureAIService;
+
     @PostMapping("/create")
     public ResponseEntity<?> createJob(@RequestBody Job job) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -156,14 +159,28 @@ public class JobController {
             return ResponseEntity.badRequest().body("Resume is required for application.");
         }
 
-        if (application.getResumeData() != null) {
-            System.out.println("DEBUG: Binary data ready for persistence. Size: " + application.getResumeData().length);
-        } else {
+        if (application.getResumeData() == null) {
             System.out.println("DEBUG: WARNING - Binary data is NULL before save!");
+        } else {
+            System.out.println("DEBUG: Binary data ready for persistence. Size: " + application.getResumeData().length);
         }
 
+        // Save application immediately with "Processing" status for AI summary
+        application.setAiSummary("Processing resume summary...");
         JobApplication saved = jobApplicationRepository.save(application);
         System.out.println("DEBUG: Application saved to MongoDB. ID: " + saved.getId() + " for candidate: " + email);
+
+        // Trigger async AI processing in background (won't block response)
+        if (saved.getResumeData() != null) {
+            azureAIService.summarizeResumeAsync(
+                    saved.getId(),
+                    saved.getResumeData(),
+                    saved.getResumeUrl(),
+                    jobApplicationRepository,
+                    jobRepository);
+            System.out.println("DEBUG: Async AI summarization task triggered for application: " + saved.getId());
+        }
+
         return ResponseEntity.ok("Application submitted successfully!");
     }
 
