@@ -51,7 +51,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/internal/**",
-                                "/api/auth/profile/internal/**", "/h2-console/**")
+                                "/api/auth/profile/internal/**", "/api/auth/profile/picture/**", "/h2-console/**")
                         .permitAll()
                         .requestMatchers("/api/auth/profile/**").authenticated()
                         .anyRequest().authenticated())

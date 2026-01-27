@@ -48,6 +48,13 @@ public class User {
     private byte[] resumeData;
     private String resumeContentType;
 
+    // Profile Picture
+    private String profilePictureUrl;
+
+    private String profilePictureId; // GridFS File ID
+
+    private String profilePictureContentType;
+
     private boolean isPremium;
     private boolean isLocked;
 }

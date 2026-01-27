@@ -280,7 +280,28 @@ function showDashboard(userData) {
     const dashboard = document.getElementById('dashboard');
     const userName = document.getElementById('userName');
     const userEmail = document.getElementById('userEmail');
+
+    // Avatar Logic
+    const avatarContainer = document.getElementById('userAvatar');
     const avatarInitials = document.getElementById('avatarInitials');
+
+    // Clear previous image
+    const existingImg = avatarContainer.querySelector('img');
+    if (existingImg) existingImg.remove();
+    avatarInitials.style.display = 'block';
+
+    if (userData.profilePictureUrl) {
+        avatarInitials.style.display = 'none';
+        const img = document.createElement('img');
+        img.src = 'http://localhost:8080' + userData.profilePictureUrl + '?t=' + new Date().getTime();
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '50%';
+        avatarContainer.appendChild(img);
+    } else {
+        avatarInitials.textContent = getInitials(userData.firstName, userData.lastName);
+    }
 
     // Role elements
     const roleTitle = document.getElementById('roleTitle');
@@ -291,7 +312,6 @@ function showDashboard(userData) {
     // Update basic info
     userName.textContent = `Welcome, ${userData.firstName}!`;
     userEmail.textContent = userData.email;
-    avatarInitials.textContent = getInitials(userData.firstName, userData.lastName);
 
     // Role-based updates
     const role = userData.role || 'CANDIDATE';
@@ -593,6 +613,22 @@ function handleLogout() {
 
 // Profile Management
 function populateProfileForm(userData) {
+    // Profile Picture Logic
+    const avatarInitials = document.getElementById('profileViewInitials');
+    const avatarImage = document.getElementById('profileViewImage');
+
+    if (avatarInitials && avatarImage) {
+        if (userData.profilePictureUrl) {
+            avatarInitials.style.display = 'none';
+            avatarImage.style.display = 'block';
+            avatarImage.src = 'http://localhost:8080' + userData.profilePictureUrl + '?t=' + new Date().getTime();
+        } else {
+            avatarInitials.style.display = 'block';
+            avatarImage.style.display = 'none';
+            avatarInitials.textContent = getInitials(userData.firstName || '', userData.lastName || '');
+        }
+    }
+
     document.getElementById('profileFirstName').value = userData.firstName || '';
     document.getElementById('profileLastName').value = userData.lastName || '';
 
@@ -721,6 +757,57 @@ function areObjectsEqual(obj1, obj2) {
         if (val1 !== val2) return false;
     }
     return true;
+}
+
+async function handleProfilePictureUpload(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert('File is too large. Max 5MB.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const avatarContainer = document.getElementById('profileViewAvatar');
+        if (avatarContainer) avatarContainer.style.opacity = '0.5';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/profile/picture`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${currentToken}`
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const updatedUser = await response.json();
+
+                // Merge and Save
+                currentUser = { ...currentUser, ...updatedUser };
+                localStorage.setItem('user', JSON.stringify(currentUser));
+
+                // Update UI interactively
+                populateProfileForm(currentUser);
+
+                // Start a silent refresh to ensure dashboard header is updated too
+                validateTokenAndShowDashboard();
+
+                alert('Profile picture updated successfully!');
+            } else {
+                const errorText = await response.text();
+                alert('Failed to upload profile picture: ' + errorText);
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert('Error uploading picture.');
+        } finally {
+            if (avatarContainer) avatarContainer.style.opacity = '1';
+        }
+    }
 }
 
 async function handleProfileUpdate(e) {
@@ -1429,8 +1516,11 @@ async function viewApplicants(jobId, jobTitle) {
     listEl.innerHTML = apps.map(app => `
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
             <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 20px;">
-                <div style="width: 48px; height: 48px; border-radius: 12px; background: #667eea; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: #667eea; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px; position: relative; overflow: hidden;">
                     ${app.candidateEmail.charAt(0).toUpperCase()}
+                    <img src="${API_BASE_URL.replace('/api', '')}/api/auth/profile/picture/${app.candidateEmail}" 
+                         style="position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: cover;" 
+                         onerror="this.style.display='none'">
                 </div>
                 <div style="flex: 1;">
                     <h5 style="font-size: 15px; font-weight: 800; color: #0f172a; margin: 0; word-break: break-all;">${app.candidateEmail}</h5>

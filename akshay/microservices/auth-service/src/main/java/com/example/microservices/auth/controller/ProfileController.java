@@ -13,6 +13,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import org.bson.types.ObjectId;
+
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Criteria;
+import com.mongodb.client.gridfs.model.GridFSFile;
+import org.springframework.data.mongodb.gridfs.GridFsResource;
 
 @RestController
 @RequestMapping("/api/auth/profile")
@@ -20,6 +27,9 @@ public class ProfileController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private GridFsTemplate gridFsTemplate;
 
     @GetMapping
     public ResponseEntity<?> getProfile() {
@@ -62,6 +72,78 @@ public class ProfileController {
             ex.printStackTrace();
             return ResponseEntity.badRequest().body("Could not upload file " + ex.getMessage());
         }
+    }
+
+    @PostMapping("/picture")
+    public ResponseEntity<?> uploadProfilePicture(@RequestParam("file") MultipartFile file) {
+        System.out.println("DEBUG: uploadProfilePicture called: " + file.getOriginalFilename());
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body("Cannot upload empty file");
+            }
+
+            String filename = file.getOriginalFilename();
+            if (filename != null
+                    && (filename.toLowerCase().endsWith(".heic") || filename.toLowerCase().endsWith(".heif"))) {
+                return ResponseEntity.badRequest()
+                        .body("HEIC/HEIF format is not supported by browsers. Please upload a JPG or PNG image.");
+            }
+
+            User existingUser = authService.getUserByEmail(email);
+
+            // Delete old picture if exists
+            if (existingUser.getProfilePictureId() != null) {
+                gridFsTemplate
+                        .delete(new Query(Criteria.where("_id").is(new ObjectId(existingUser.getProfilePictureId()))));
+            }
+
+            // Save new picture to GridFS
+            org.bson.types.ObjectId fileId = gridFsTemplate.store(file.getInputStream(), file.getOriginalFilename(),
+                    file.getContentType());
+
+            User userUpdates = new User();
+            userUpdates.setProfilePictureId(fileId.toString());
+            userUpdates.setProfilePictureContentType(file.getContentType());
+            userUpdates.setProfilePictureUrl("/api/auth/profile/picture/" + email);
+
+            User savedUser = authService.updateUser(email, userUpdates);
+            return ResponseEntity.ok(savedUser);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return ResponseEntity.badRequest().body("Could not upload file " + ex.getMessage());
+        }
+    }
+
+    @GetMapping("/picture/{email:.+}")
+    public ResponseEntity<Resource> getProfilePicture(@PathVariable String email) {
+        System.out.println("DEBUG: getProfilePicture called for " + email);
+        User user = authService.getUserByEmail(email);
+
+        if (user != null && user.getProfilePictureId() != null) {
+            System.out.println("DEBUG: Found picture ID: " + user.getProfilePictureId());
+            GridFSFile gridFSFile = null;
+            try {
+                gridFSFile = gridFsTemplate
+                        .findOne(new Query(Criteria.where("_id").is(new ObjectId(user.getProfilePictureId()))));
+            } catch (IllegalArgumentException e) {
+                System.out.println("DEBUG: Invalid ObjectId: " + user.getProfilePictureId());
+            }
+
+            if (gridFSFile != null) {
+                GridFsResource resource = gridFsTemplate.getResource(gridFSFile);
+                String contentType = user.getProfilePictureContentType();
+                System.out.println("DEBUG: Serving content type: " + contentType);
+
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                        .contentType(MediaType.parseMediaType(
+                                contentType != null ? contentType : "image/jpeg"))
+                        .body(resource);
+            }
+        }
+        return ResponseEntity.notFound().build();
     }
 
     @GetMapping("/resume/{fileName:.+}")

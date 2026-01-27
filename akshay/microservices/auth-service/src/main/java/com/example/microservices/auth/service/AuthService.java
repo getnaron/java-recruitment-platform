@@ -63,6 +63,7 @@ public class AuthService {
         response.setCountryCode(user.getCountryCode());
         response.setMobileNumber(user.getMobileNumber());
         response.setPremium(user.isPremium());
+        response.setProfilePictureUrl(user.getProfilePictureUrl());
 
         return response;
     }
@@ -97,6 +98,7 @@ public class AuthService {
         response.setCountryCode(user.getCountryCode());
         response.setMobileNumber(user.getMobileNumber());
         response.setPremium(user.isPremium());
+        response.setProfilePictureUrl(user.getProfilePictureUrl());
 
         return response;
     }
@@ -144,6 +146,14 @@ public class AuthService {
             user.setCountryCode(updatedUser.getCountryCode());
         if (updatedUser.getMobileNumber() != null)
             user.setMobileNumber(updatedUser.getMobileNumber());
+
+        // Profile Picture Updates
+        if (updatedUser.getProfilePictureId() != null)
+            user.setProfilePictureId(updatedUser.getProfilePictureId());
+        if (updatedUser.getProfilePictureUrl() != null)
+            user.setProfilePictureUrl(updatedUser.getProfilePictureUrl());
+        if (updatedUser.getProfilePictureContentType() != null)
+            user.setProfilePictureContentType(updatedUser.getProfilePictureContentType());
 
         return userRepository.save(user);
     }

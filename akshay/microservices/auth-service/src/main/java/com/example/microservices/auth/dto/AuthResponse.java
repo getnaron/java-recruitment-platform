@@ -25,6 +25,7 @@ public class AuthResponse {
     private String countryCode;
     private String mobileNumber;
     private boolean isPremium;
+    private String profilePictureUrl;
 
     public AuthResponse(String token, String email, String firstName, String lastName, String role) {
         this.token = token;
