@@ -604,7 +604,7 @@ function populateProfileForm(userData) {
     document.getElementById('profileExperienceYears').value = userData.experienceYears || '';
     document.getElementById('profileEducation').value = userData.education || '';
     document.getElementById('profileSkills').value = userData.skills || '';
-    document.getElementById('profilePastExperience').value = userData.pastExperience || '';
+    // document.getElementById('profilePastExperience').value = userData.pastExperience || '';
 
     const resumeLink = document.getElementById('currentResumeLink');
     if (userData.resumeUrl) {
@@ -673,7 +673,7 @@ function captureInitialProfileState() {
         experienceYears: document.getElementById('profileExperienceYears').value || '',
         education: document.getElementById('profileEducation').value || '',
         skills: document.getElementById('profileSkills').value || '',
-        pastExperience: document.getElementById('profilePastExperience').value || ''
+        pastExperience: ''
     };
 }
 
@@ -692,7 +692,7 @@ function checkProfileChanges() {
         experienceYears: document.getElementById('profileExperienceYears').value || '',
         education: document.getElementById('profileEducation').value || '',
         skills: document.getElementById('profileSkills').value || '',
-        pastExperience: document.getElementById('profilePastExperience').value || ''
+        pastExperience: ''
     };
 
     // Check if file is selected (file input value is not empty)
@@ -744,7 +744,7 @@ async function handleProfileUpdate(e) {
             profileData.experienceYears = document.getElementById('profileExperienceYears').value;
             profileData.education = document.getElementById('profileEducation').value;
             profileData.skills = document.getElementById('profileSkills').value;
-            profileData.pastExperience = document.getElementById('profilePastExperience').value;
+            // profileData.pastExperience = document.getElementById('profilePastExperience').value;
         }
 
         const updateResponse = await fetch(`${API_BASE_URL}/auth/profile`, {
@@ -934,7 +934,7 @@ function populateCandidateModalFields(candidate) {
     document.getElementById('viewCandidateExperience').textContent = candidate.experienceYears || '0';
     document.getElementById('viewCandidateEducation').textContent = candidate.education || 'N/A';
     document.getElementById('viewCandidateSkills').textContent = candidate.skills || 'N/A';
-    document.getElementById('viewCandidatePastExp').textContent = candidate.pastExperience || 'No details provided.';
+    // document.getElementById('viewCandidatePastExp').textContent = candidate.pastExperience || 'No details provided.';
 }
 
 
@@ -971,6 +971,7 @@ async function handleCreateJob(e) {
 
     const jobData = {
         title: document.getElementById('jobTitle').value,
+        aboutCompany: document.getElementById('jobAboutCompany').value,
         requirements: document.getElementById('jobRequirements').value,
         companyName: document.getElementById('jobCompany').value,
         description: document.getElementById('jobDescription').value,
@@ -1262,6 +1263,19 @@ async function viewJobDetails(jobId) {
                 document.getElementById('viewJobSalary').textContent = job.salary ? `$${job.salary.toLocaleString()}` : 'N/A';
                 document.getElementById('viewJobDescription').textContent = job.description;
 
+                // Populate About Company
+                const aboutEl = document.getElementById('viewJobAboutCompany');
+                const aboutSection = document.getElementById('viewJobAboutCompanySection');
+
+                if (aboutEl && aboutSection) {
+                    if (job.aboutCompany) {
+                        aboutEl.textContent = job.aboutCompany;
+                        aboutSection.style.display = 'block';
+                    } else {
+                        aboutSection.style.display = 'none';
+                    }
+                }
+
                 // Resume Option
                 const profileResumeName = currentUser.resumeUrl || 'None';
                 document.getElementById('applyProfileResumeName').textContent = profileResumeName;
@@ -1359,7 +1373,17 @@ function showProfileView() {
 
 function showDashboardView() {
     document.getElementById('profileView').style.display = 'none';
+    const raView = document.getElementById('recruiterApplicationsView');
+    if (raView) raView.style.display = 'none';
     document.getElementById('dashboardView').style.display = 'block';
+}
+
+function showRecruiterApplicationsView() {
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('profileView').style.display = 'none';
+    document.getElementById('recruiterApplicationsView').style.display = 'block';
+    console.log('Opened Recruiter Applications View');
+    fetchApplications();
 }
 
 // Override the old scroll function to just switch views

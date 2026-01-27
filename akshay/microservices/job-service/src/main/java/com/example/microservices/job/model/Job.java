@@ -20,6 +20,7 @@ public class Job {
     private String requirements;
     private String companyName;
     private String description;
+    private String aboutCompany;
     private Double salary;
     private String recruiterEmail;
 
