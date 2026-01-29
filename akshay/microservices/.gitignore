@@ -9,3 +9,5 @@ user-service/target/
 api-gateway/target/
 eureka-server/target/
 mongodb_data/
+.env
+

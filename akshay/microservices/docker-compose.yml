@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  eureka-server:
+    build: ./eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
+      - EUREKA_CLIENT_FETCH_REGISTRY=false
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8761/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_CLOUD_GATEWAY_DISCOVERY_LOCATOR_ENABLED=true
+    depends_on:
+      eureka-server:
+        condition: service_started
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/microservices_db
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - JWT_SECRET=${JWT_SECRET} # Optional: Override built-in secret
+    depends_on:
+      mongodb:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/microservices_db
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      mongodb:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+
+  job-service:
+    build: ./job-service
+    container_name: job-service
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/microservices_db
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+    depends_on:
+      mongodb:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+
+  ui-portal:
+    build: ./ui-portal
+    container_name: ui-portal
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  mongodb_data:
